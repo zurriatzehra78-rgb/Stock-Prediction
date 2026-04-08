@@ -657,7 +657,7 @@ def main():
         # Stock header with metrics
         col1, col2, col3, col4, col5 = st.columns(5)
         with col1:
-            st.metric("Current Price", f"PKR {predictor.data['current_price']:.2f}", 
+            st.metric("Current Price", f"PKR {predictor.data['current_price']:.2f", 
                      delta=f"{predictor.calculate_trend(predictor.data['prices']):.1f}%")
         with col2:
             st.metric("Market Cap", predictor.data['market_cap'] if isinstance(predictor.data['market_cap'], str) 
@@ -849,4 +849,133 @@ def main():
                         
                         2. **Exit Strategy:**
                            - 🎯 **Target 1 (50% profit):** PKR {(analysis['current_price'] + (analysis['predicted_high'] - analysis['current_price'])/2):.2f}
-                           - 🎯 **Target 2 (Full profit):** PKR {analysis['predicted_high']
+                           - 🎯 **Target 2 (Full profit):** PKR {analysis['predicted_high']:.2f}
+                        """)
+                    elif "HOLD" in analysis['decision']:
+                        st.markdown("""
+                        ### 📊 Hold Strategy:
+                        
+                        1. **Current Position:**
+                           - Maintain current holdings
+                           - Set stop-loss at 5-7% below current price
+                           - Wait for clearer signals
+                        
+                        2. **Watch Points:**
+                           - Monitor RSI for entry opportunities
+                           - Watch for breakout above resistance
+                           - Consider partial profit booking if price spikes
+                        """)
+                    elif "SELL" in analysis['decision']:
+                        st.markdown("""
+                        ### 🔴 Exit Strategy:
+                        
+                        1. **Immediate Actions:**
+                           - Consider selling 50-70% of position
+                           - Set tight stop-loss at 3-5%
+                           - Reduce exposure to this stock
+                        
+                        2. **Alternative Actions:**
+                           - Shift capital to better opportunities
+                           - Wait for pullback to exit remaining position
+                           - Consider hedging strategies
+                        """)
+                    else:
+                        st.markdown("""
+                        ### 📈 Monitoring Strategy:
+                        
+                        1. **Wait and Watch:**
+                           - Hold cash position for now
+                           - Set price alerts at key levels
+                           - Monitor technical indicators daily
+                        
+                        2. **Entry Conditions:**
+                           - Wait for RSI to reach oversold levels (<30)
+                           - Look for bullish reversal patterns
+                           - Enter only if price breaks resistance with volume
+                        """)
+        
+        with tab4:
+            st.subheader("Future Price Predictions")
+            predicted_prices, lower_bounds, upper_bounds = predictor.predict_future()
+            
+            # Create prediction table
+            months = ["Month 1", "Month 2", "Month 3", "Month 4", "Month 5"]
+            pred_df = pd.DataFrame({
+                'Month': months,
+                'Predicted Price (PKR)': predicted_prices,
+                'Lower Bound (95% CI)': lower_bounds,
+                'Upper Bound (95% CI)': upper_bounds
+            })
+            st.dataframe(pred_df, use_container_width=True)
+            
+            # Prediction chart
+            fig_pred = go.Figure()
+            fig_pred.add_trace(go.Scatter(
+                x=months,
+                y=predicted_prices,
+                mode='lines+markers',
+                name='Predicted Price',
+                line=dict(color='orange', width=2),
+                marker=dict(size=10)
+            ))
+            fig_pred.add_trace(go.Scatter(
+                x=months,
+                y=upper_bounds,
+                mode='lines',
+                name='Upper Bound (95% CI)',
+                line=dict(color='gray', dash='dash')
+            ))
+            fig_pred.add_trace(go.Scatter(
+                x=months,
+                y=lower_bounds,
+                mode='lines',
+                name='Lower Bound (95% CI)',
+                line=dict(color='gray', dash='dash')
+            ))
+            fig_pred.update_layout(
+                title='5-Month Price Prediction',
+                xaxis_title='Time Period',
+                yaxis_title='Price (PKR)',
+                template='plotly_dark',
+                height=500
+            )
+            st.plotly_chart(fig_pred, use_container_width=True)
+            
+            # Prediction insights
+            st.subheader("📊 Prediction Insights")
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                expected_return = ((predicted_prices[-1] - predictor.data['current_price']) / predictor.data['current_price']) * 100
+                st.metric("Expected Return (5 months)", f"{expected_return:+.1f}%")
+            with col2:
+                st.metric("Maximum Price", f"PKR {max(predicted_prices):.2f}")
+            with col3:
+                st.metric("Minimum Price", f"PKR {min(predicted_prices):.2f}")
+        
+        with tab5:
+            st.subheader("Company Information")
+            st.markdown(f"""
+            ### {stock_info['name']} ({predictor.current_stock})
+            
+            **Sector:** {stock_info['sector']}
+            
+            **About:**
+            {predictor.current_stock} is a leading company in Pakistan's {stock_info['sector']} sector.
+            
+            **Key Metrics:**
+            - Current Price: PKR {predictor.data['current_price']:.2f}
+            - Market Cap: {predictor.data['market_cap'] if isinstance(predictor.data['market_cap'], str) else f'PKR {predictor.data["market_cap"]/1e9:.1f}B'}
+            - P/E Ratio: {predictor.data['pe_ratio']}
+            - Dividend Yield: {predictor.data['dividend_yield']}%
+            - Beta: {predictor.data['beta']}
+            - 52-Week Range: PKR {predictor.data['52_week_low']:.2f} - {predictor.data['52_week_high']:.2f}
+            
+            **Volatility Information:**
+            - Annual Volatility: {predictor.data['volatility']}%
+            - Average Daily Volume: {int(predictor.data['volume_avg']):,}
+            
+            *Data provided by Yahoo Finance*
+            """)
+
+if __name__ == "__main__":
+    main()
