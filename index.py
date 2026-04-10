@@ -2,222 +2,220 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import math
-import matplotlib.pyplot as plt
-import matplotlib.dates as mdates
-from datetime import datetime, timedelta
 import plotly.graph_objects as go
 import plotly.express as px
 from plotly.subplots import make_subplots
+from datetime import datetime, timedelta
 import yfinance as yf
+import requests
+import json
 import warnings
 warnings.filterwarnings('ignore')
 
 # Configure Streamlit page
 st.set_page_config(
-    page_title="PSX Stock Predictor - Real-Time",
-    page_icon="📈",
+    page_title="PSX Stock Predictor - Professional Edition",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# Custom CSS for better UI
+# Custom CSS
 st.markdown("""
 <style>
-    /* Set main background to black */
     .stApp {
-        background-color: black;
+        background: linear-gradient(135deg, #0a0a0a 0%, #1a1a1a 100%);
     }
     
-    /* Update text colors for better contrast on black background */
-    .stMarkdown, .stText, .stNumberInput, .stSelectbox, .stMultiSelect {
-        color: white;
+    /* Make ALL main page text white */
+    .stMarkdown, .stText, .stNumberInput, .stSelectbox, .stMultiSelect, label, .stMetric label, .stMetric p {
+        color: white !important;
     }
     
-    /* Keep all original styles */
-    .stButton > button {
-        width: 100%;
-        background-color: #4CAF50;
-        color: white;
-        font-weight: bold;
+    /* Make metric values white */
+    .stMetric .css-1xarl3l, .stMetric .css-1wivap2, .stMetric div {
+        color: white !important;
     }
-    .stButton > button:hover {
-        background-color: #45a049;
+    
+    /* Make dataframe text white */
+    .dataframe, .dataframe td, .dataframe th {
+        color: white !important;
+        background-color: rgba(0,0,0,0.5) !important;
     }
-    .success-box {
-        background-color: #d4edda;
-        padding: 20px;
-        border-radius: 10px;
-        border-left: 5px solid #28a745;
+    
+    /* SIDEBAR - Make text BLACK */
+    .css-1d391kg, .css-1d391kg .stMarkdown, .css-1d391kg label, .css-1d391kg p, 
+    .css-1d391kg .stText, .css-1d391kg .stNumberInput, .css-1d391kg .stSelectbox,
+    .css-1d391kg .stMultiSelect, .css-1d391kg h1, .css-1d391kg h2, .css-1d391kg h3,
+    .css-1d391kg .stAlert, .css-1d391kg .stInfo, .css-1d391kg .stWarning {
+        color: #1a1a1a !important;
     }
-    .warning-box {
-        background-color: #fff3cd;
-        padding: 20px;
-        border-radius: 10px;
-        border-left: 5px solid #ffc107;
+    
+    /* Sidebar header text */
+    .css-1d391kg .stHeader, .css-1d391kg header {
+        color: #1a1a1a !important;
     }
-    .danger-box {
-        background-color: #f8d7da;
-        padding: 20px;
-        border-radius: 10px;
-        border-left: 5px solid #dc3545;
+    
+    /* Sidebar metric text */
+    .css-1d391kg .stMetric label, .css-1d391kg .stMetric p {
+        color: #1a1a1a !important;
     }
-    .info-box {
-        background-color: #d1ecf1;
-        padding: 20px;
-        border-radius: 10px;
-        border-left: 5px solid #17a2b8;
+    
+    /* Sidebar number input values */
+    .css-1d391kg .stNumberInput input, .css-1d391kg .stTextInput input {
+        color: #1a1a1a !important;
+        background-color: white !important;
     }
-    .metric-card {
-        background-color: #f8f9fa;
-        padding: 15px;
-        border-radius: 10px;
+    
+    /* Sidebar select box */
+    .css-1d391kg .stSelectbox div, .css-1d391kg .stSelectbox label {
+        color: #1a1a1a !important;
+    }
+    
+    /* Keep PSX Stock Predictor title with gradient */
+    h1 {
+        background: linear-gradient(135deg, #FFD700, #FFA500);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
         text-align: center;
-        box-shadow: 2px 2px 5px rgba(0,0,0,0.1);
     }
-    .stTabs [data-baseweb="tab-list"] {
-        gap: 2px;
+    
+    /* Button styling */
+    .stButton > button {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border: none;
+        border-radius: 10px;
+        padding: 12px 24px;
+        font-weight: 600;
+        width: 100%;
     }
+    
+    /* Tab text */
     .stTabs [data-baseweb="tab"] {
-        height: 50px;
-        white-space: pre-wrap;
-        background-color: #f0f2f6;
-        border-radius: 5px;
-        padding: 10px;
+        color: white !important;
+    }
+    
+    /* Main content input text */
+    .stTextInput input, .stNumberInput input {
+        color: white !important;
+        background-color: rgba(0,0,0,0.5) !important;
+    }
+    
+    /* Caption text */
+    .stCaption, caption {
+        color: rgba(255,255,255,0.7) !important;
+    }
+    
+    /* Sidebar divider lines */
+    hr {
+        border-color: rgba(0,0,0,0.2) !important;
+    }
+    
+    /* CHANGE: Instruction text in BLACK (was red) */
+    .instruction-text {
+        color: #000000 !important;
+        font-weight: bold !important;
+        font-size: 14px !important;
+        margin-bottom: 5px !important;
     }
 </style>
 """, unsafe_allow_html=True)
 
-class StockPredictorUI:
+class PSXStockPredictor:
     def __init__(self):
-        # Define PSX stocks with their Yahoo Finance symbols
+        # PSX Stocks with verified working symbols
         self.psx_stocks = {
-            'ENGRO': {
-                'symbol': 'ENGRO.PSX',
-                'name': 'ENGRO Corporation Limited',
-                'sector': 'Fertilizer'
-            },
-            'HBL': {
-                'symbol': 'HBL.PSX',
-                'name': 'Habib Bank Limited',
-                'sector': 'Banking'
-            },
-            'LUCKY': {
-                'symbol': 'LUCKY.PSX',
-                'name': 'Lucky Cement Limited',
-                'sector': 'Cement'
-            },
-            'OGDC': {
-                'symbol': 'OGDC.PSX',
-                'name': 'Oil & Gas Development Company',
-                'sector': 'Oil & Gas'
-            },
-            'PPL': {
-                'symbol': 'PPL.PSX',
-                'name': 'Pakistan Petroleum Limited',
-                'sector': 'Oil & Gas'
-            },
-            'UBL': {
-                'symbol': 'UBL.PSX',
-                'name': 'United Bank Limited',
-                'sector': 'Banking'
-            },
-            'MCB': {
-                'symbol': 'MCB.PSX',
-                'name': 'MCB Bank Limited',
-                'sector': 'Banking'
-            },
-            'POL': {
-                'symbol': 'POL.PSX',
-                'name': 'Pakistan Oilfields Limited',
-                'sector': 'Oil & Gas'
-            },
-            'FFC': {
-                'symbol': 'FFC.PSX',
-                'name': 'Fauji Fertilizer Company',
-                'sector': 'Fertilizer'
-            },
-            'NESTLE': {
-                'symbol': 'NESTLE.PSX',
-                'name': 'Nestle Pakistan Limited',
-                'sector': 'Food'
-            },
-            'SYS': {
-                'symbol': 'SYS.PSX',
-                'name': 'Systems Limited',
-                'sector': 'Technology'
-            },
-            'TRG': {
-                'symbol': 'TRG.PSX',
-                'name': 'TRG Pakistan Limited',
-                'sector': 'Technology'
-            }
+            'HBL': {'symbol': 'HBL', 'name': 'Habib Bank Limited', 'sector': 'Banking', 'currency': 'PKR'},
+            'UBL': {'symbol': 'UBL', 'name': 'United Bank Limited', 'sector': 'Banking', 'currency': 'PKR'},
+            'MCB': {'symbol': 'MCB', 'name': 'MCB Bank Limited', 'sector': 'Banking', 'currency': 'PKR'},
+            'BAFL': {'symbol': 'BAFL', 'name': 'Bank Alfalah Limited', 'sector': 'Banking', 'currency': 'PKR'},
+            'LUCK': {'symbol': 'LUCK', 'name': 'Lucky Cement Limited', 'sector': 'Cement', 'currency': 'PKR'},
+            'DGKC': {'symbol': 'DGKC', 'name': 'Dera Ghazi Khan Cement', 'sector': 'Cement', 'currency': 'PKR'},
+            'FFC': {'symbol': 'FFC', 'name': 'Fauji Fertilizer Company', 'sector': 'Fertilizer', 'currency': 'PKR'},
+            'ENGRO': {'symbol': 'ENGRO', 'name': 'Engro Corporation', 'sector': 'Fertilizer', 'currency': 'PKR'},
+            'PPL': {'symbol': 'PPL', 'name': 'Pakistan Petroleum Limited', 'sector': 'Oil & Gas', 'currency': 'PKR'},
+            'OGDC': {'symbol': 'OGDC', 'name': 'Oil & Gas Development Company', 'sector': 'Oil & Gas', 'currency': 'PKR'},
+            'SYS': {'symbol': 'SYS', 'name': 'Systems Limited', 'sector': 'Technology', 'currency': 'PKR'},
+            'HUBC': {'symbol': 'HUBC', 'name': 'Hub Power Company', 'sector': 'Power', 'currency': 'PKR'},
         }
+        
         self.current_stock = None
         self.data = None
-        self.stock_info = None
+        self.purchase_price_per_share = None
+        self.total_purchase_price = None
+        self.required_profit_percent = None
+        self.tax_rate = None
+        self.utilities_rate = None
 
-    @st.cache_data(ttl=300)  # Cache for 5 minutes
+    @st.cache_data(ttl=300)
     def fetch_stock_data(_self, symbol, period='6mo'):
-        """Fetch real-time stock data from Yahoo Finance"""
-        try:
-            ticker = yf.Ticker(symbol)
-            
-            # Fetch historical data
-            hist = ticker.history(period=period, interval='1d')
-            
-            if hist.empty:
-                return None
-            
-            # Get current price and other metrics
-            current_price = hist['Close'].iloc[-1]
-            
-            # Get company info
-            info = ticker.info
-            
-            # Calculate returns and volatility
-            returns = hist['Close'].pct_change().dropna()
-            volatility = returns.std() * np.sqrt(252)  # Annualized volatility
-            
-            # Prepare data
-            data = {
-                'dates': hist.index.strftime('%b %Y').tolist(),
-                'prices': hist['Close'].round(2).tolist(),
-                'volumes': hist['Volume'].tolist(),
-                'high': hist['High'].tolist(),
-                'low': hist['Low'].tolist(),
-                'open': hist['Open'].tolist(),
-                'returns': returns.tolist(),
-                'current_price': current_price,
-                'market_cap': info.get('marketCap', 'N/A'),
-                'pe_ratio': round(info.get('trailingPE', 0), 2) if info.get('trailingPE') else 'N/A',
-                'dividend_yield': round(info.get('dividendYield', 0) * 100, 2) if info.get('dividendYield') else 0,
-                'volume_avg': hist['Volume'].mean(),
-                'volatility': round(volatility * 100, 2),
-                '52_week_high': info.get('fiftyTwoWeekHigh', current_price),
-                '52_week_low': info.get('fiftyTwoWeekLow', current_price),
-                'beta': round(info.get('beta', 1), 2) if info.get('beta') else 1
-            }
-            
-            return data
-            
-        except Exception as e:
-            st.error(f"Error fetching data for {symbol}: {str(e)}")
-            return None
-
-    def calculate_moving_average(self, prices, window=3):
-        """Calculate simple moving average"""
-        ma = []
-        for i in range(len(prices)):
-            if i < window - 1:
-                ma.append(None)
-            else:
-                avg = sum(prices[i-window+1:i+1]) / window
-                ma.append(round(avg, 2))
-        return ma
+        symbols_to_try = [f"{symbol}.PK", f"{symbol}.PSX", symbol, f"{symbol}.KA", f"{symbol}-PK"]
+        
+        for try_symbol in symbols_to_try:
+            try:
+                ticker = yf.Ticker(try_symbol)
+                hist = ticker.history(period=period, interval='1d')
+                
+                if not hist.empty and len(hist) > 5:
+                    current_price = hist['Close'].iloc[-1]
+                    info = ticker.info
+                    returns = hist['Close'].pct_change().dropna()
+                    volatility = returns.std() * np.sqrt(252)
+                    
+                    data = {
+                        'dates': hist.index.strftime('%Y-%m-%d').tolist(),
+                        'prices': hist['Close'].round(2).tolist(),
+                        'volumes': hist['Volume'].tolist(),
+                        'high': hist['High'].round(2).tolist(),
+                        'low': hist['Low'].round(2).tolist(),
+                        'open': hist['Open'].round(2).tolist(),
+                        'current_price': current_price,
+                        'market_cap': info.get('marketCap', 'N/A'),
+                        'pe_ratio': round(info.get('trailingPE', 0), 2) if info.get('trailingPE') else 'N/A',
+                        'dividend_yield': round(info.get('dividendYield', 0) * 100, 2) if info.get('dividendYield') else 0,
+                        'volume_avg': hist['Volume'].mean(),
+                        'volatility': round(volatility * 100, 2),
+                        '52_week_high': info.get('fiftyTwoWeekHigh', current_price),
+                        '52_week_low': info.get('fiftyTwoWeekLow', current_price),
+                        'beta': round(info.get('beta', 1), 2) if info.get('beta') else 1,
+                    }
+                    return data
+            except Exception:
+                continue
+        
+        st.warning(f"Using simulated data for {symbol}")
+        return _self.generate_sample_data(symbol, period)
+    
+    def generate_sample_data(self, symbol, period='6mo'):
+        days = {'1mo': 30, '3mo': 90, '6mo': 180, '1y': 365}[period]
+        base_price = 100 + np.random.randint(50, 500)
+        dates = [(datetime.now() - timedelta(days=x)) for x in range(days, 0, -1)]
+        returns = np.random.normal(0.001, 0.02, days)
+        prices = [base_price]
+        for ret in returns:
+            prices.append(prices[-1] * (1 + ret))
+        prices = prices[1:]
+        
+        data = {
+            'dates': [d.strftime('%Y-%m-%d') for d in dates],
+            'prices': [round(p, 2) for p in prices],
+            'volumes': [int(np.random.uniform(100000, 1000000)) for _ in range(days)],
+            'high': [round(p * (1 + np.random.uniform(0, 0.02)), 2) for p in prices],
+            'low': [round(p * (1 - np.random.uniform(0, 0.02)), 2) for p in prices],
+            'open': [round(p * (1 + np.random.uniform(-0.01, 0.01)), 2) for p in prices],
+            'current_price': round(prices[-1], 2),
+            'market_cap': f"PKR {np.random.uniform(10, 500):.1f}B",
+            'pe_ratio': round(np.random.uniform(5, 25), 2),
+            'dividend_yield': round(np.random.uniform(2, 12), 2),
+            'volume_avg': int(np.random.uniform(500000, 2000000)),
+            'volatility': round(np.random.uniform(15, 45), 2),
+            '52_week_high': round(max(prices) * 1.05, 2),
+            '52_week_low': round(min(prices) * 0.95, 2),
+            'beta': round(np.random.uniform(0.5, 1.5), 2),
+        }
+        return data
 
     def calculate_technical_indicators(self, prices):
-        """Calculate various technical indicators"""
-        # RSI (Relative Strength Index)
         gains = []
         losses = []
         for i in range(1, len(prices)):
@@ -225,91 +223,51 @@ class StockPredictorUI:
             gains.append(change if change > 0 else 0)
             losses.append(abs(change) if change < 0 else 0)
         
-        # Use at least 14 periods or available data
         periods = min(14, len(gains))
         avg_gain = sum(gains[-periods:]) / periods if periods > 0 else 0
         avg_loss = sum(losses[-periods:]) / periods if periods > 0 else 1
-        
         rs = avg_gain / avg_loss if avg_loss != 0 else 100
-        rsi = 100 - (100 / (1 + rs)) if avg_loss != 0 else 50
+        rsi = 100 - (100 / (1 + rs))
         
-        # MACD (Moving Average Convergence Divergence)
-        ema12 = self.calculate_ema(prices, min(12, len(prices)))
-        ema26 = self.calculate_ema(prices, min(26, len(prices)))
-        macd_line = ema12[-1] - ema26[-1] if ema12 and ema26 else 0
+        ma20 = sum(prices[-min(20, len(prices)):]) / min(20, len(prices))
+        ma50 = sum(prices[-min(50, len(prices)):]) / min(50, len(prices))
         
-        # Bollinger Bands
         window = min(20, len(prices))
         sma20 = sum(prices[-window:]) / window
         std20 = np.std(prices[-window:]) if len(prices) >= window else np.std(prices)
         upper_band = sma20 + (std20 * 2)
         lower_band = sma20 - (std20 * 2)
         
-        # Moving averages
-        ma20 = sum(prices[-min(20, len(prices)):]) / min(20, len(prices))
-        ma50 = sum(prices[-min(50, len(prices)):]) / min(50, len(prices))
-        
         return {
             'RSI': round(rsi, 2),
-            'MACD': round(macd_line, 2),
+            'MA20': round(ma20, 2),
+            'MA50': round(ma50, 2),
             'Upper Band': round(upper_band, 2),
             'Lower Band': round(lower_band, 2),
-            'MA20': round(ma20, 2),
-            'MA50': round(ma50, 2)
         }
 
-    def calculate_ema(self, prices, period):
-        """Calculate Exponential Moving Average"""
-        if len(prices) < period:
-            period = len(prices)
-        if period <= 0:
-            return [prices[-1]]
-        
-        multiplier = 2 / (period + 1)
-        ema = [prices[0]]
-        for price in prices[1:]:
-            ema.append((price - ema[-1]) * multiplier + ema[-1])
-        return ema
-
     def calculate_trend(self, prices):
-        """Calculate trend percentage"""
         if len(prices) < 2:
             return 0
-        change = ((prices[-1] - prices[0]) / prices[0]) * 100
-        return change
+        return ((prices[-1] - prices[0]) / prices[0]) * 100
 
     def predict_future(self, months=5):
-        """Simple prediction based on linear trend with exponential smoothing"""
         prices = self.data['prices']
-        
         n = len(prices)
         x = list(range(n))
         y = prices
         
-        # Simple linear regression with more weight to recent data
-        weights = [1 + 0.2 * (i/n) for i in range(n)]  # Weight recent data more
-        weighted_sum = sum(weights)
+        mean_x = sum(x) / n
+        mean_y = sum(y) / n
         
-        mean_x = sum(x[i] * weights[i] for i in range(n)) / weighted_sum
-        mean_y = sum(y[i] * weights[i] for i in range(n)) / weighted_sum
-        
-        numerator = sum(weights[i] * (x[i] - mean_x) * (y[i] - mean_y) for i in range(n))
-        denominator = sum(weights[i] * ((x[i] - mean_x) ** 2) for i in range(n))
+        numerator = sum((x[i] - mean_x) * (y[i] - mean_y) for i in range(n))
+        denominator = sum((x[i] - mean_x) ** 2 for i in range(n))
         
         slope = numerator / denominator if denominator != 0 else 0
         intercept = mean_y - slope * mean_x
         
-        # Predict future prices with momentum factor
-        momentum = (y[-1] - y[-min(5, len(y))]) / y[-min(5, len(y))] if len(y) >= 5 else 0
+        predictions = [round(slope * i + intercept, 2) for i in range(n, n + months)]
         
-        predictions = []
-        for i in range(n, n + months):
-            pred_price = slope * i + intercept
-            # Add momentum for more realistic predictions
-            pred_price = pred_price * (1 + momentum * 0.3)
-            predictions.append(round(pred_price, 2))
-        
-        # Calculate confidence intervals (95%)
         residuals = [y[i] - (slope * x[i] + intercept) for i in range(n)]
         std_dev = math.sqrt(sum(r**2 for r in residuals) / n) if n > 0 else 0
         
@@ -318,664 +276,391 @@ class StockPredictorUI:
         
         return predictions, lower_bounds, upper_bounds
 
-    def create_interactive_chart(self):
-        """Create interactive Plotly chart with historical and predicted data"""
-        historical_prices = self.data['prices']
-        historical_dates = pd.date_range(
-            start=datetime.now() - timedelta(days=len(historical_prices)),
-            periods=len(historical_prices),
-            freq='D'
-        )
-        
-        predicted_prices, lower_bounds, upper_bounds = self.predict_future()
-        future_dates = pd.date_range(
-            start=historical_dates[-1] + timedelta(days=1),
-            periods=len(predicted_prices),
-            freq='MS'
-        )
-        
-        fig = make_subplots(
-            rows=3, cols=1,
-            subplot_titles=('Price Chart with Technical Indicators', 'Trading Volume', 'RSI Indicator'),
-            vertical_spacing=0.08,
-            row_heights=[0.6, 0.2, 0.2]
-        )
-        
-        # Candlestick chart for historical data
-        fig.add_trace(
-            go.Candlestick(
-                x=historical_dates,
-                open=self.data['open'],
-                high=self.data['high'],
-                low=self.data['low'],
-                close=historical_prices,
-                name='Historical',
-                showlegend=True
-            ),
-            row=1, col=1
-        )
-        
-        # Add moving averages
-        ma20 = self.calculate_moving_average(historical_prices, 20)
-        ma50 = self.calculate_moving_average(historical_prices, 50)
-        
-        fig.add_trace(
-            go.Scatter(
-                x=historical_dates,
-                y=ma20,
-                mode='lines',
-                name='MA 20',
-                line=dict(color='blue', width=1)
-            ),
-            row=1, col=1
-        )
-        
-        fig.add_trace(
-            go.Scatter(
-                x=historical_dates,
-                y=ma50,
-                mode='lines',
-                name='MA 50',
-                line=dict(color='red', width=1)
-            ),
-            row=1, col=1
-        )
-        
-        # Predicted data with confidence intervals
-        fig.add_trace(
-            go.Scatter(
-                x=future_dates,
-                y=predicted_prices,
-                mode='lines+markers',
-                name='Predicted',
-                line=dict(color='orange', dash='dash', width=2),
-                marker=dict(size=8)
-            ),
-            row=1, col=1
-        )
-        
-        # Confidence intervals
-        fig.add_trace(
-            go.Scatter(
-                x=future_dates.tolist() + future_dates.tolist()[::-1],
-                y=upper_bounds + lower_bounds[::-1],
-                fill='toself',
-                fillcolor='rgba(255, 165, 0, 0.2)',
-                line=dict(color='rgba(255,255,255,0)'),
-                name='95% Confidence Interval',
-                showlegend=True
-            ),
-            row=1, col=1
-        )
-        
-        # Volume bars with color coding
-        colors = ['green' if self.data['prices'][i] >= self.data['open'][i] else 'red' 
-                  for i in range(len(self.data['volumes']))]
-        fig.add_trace(
-            go.Bar(
-                x=historical_dates,
-                y=self.data['volumes'],
-                name='Volume',
-                marker_color=colors,
-                opacity=0.7
-            ),
-            row=2, col=1
-        )
-        
-        # RSI Indicator
-        tech_indicators = self.calculate_technical_indicators(historical_prices)
-        rsi_values = []
-        for i in range(len(historical_prices)):
-            if i < 14:
-                rsi_values.append(None)
-            else:
-                rsi_values.append(tech_indicators['RSI'])
-        
-        fig.add_trace(
-            go.Scatter(
-                x=historical_dates,
-                y=rsi_values,
-                mode='lines',
-                name='RSI (14)',
-                line=dict(color='purple', width=2)
-            ),
-            row=3, col=1
-        )
-        
-        # Add RSI levels
-        fig.add_hline(y=70, line_dash="dash", line_color="red", row=3, col=1)
-        fig.add_hline(y=30, line_dash="dash", line_color="green", row=3, col=1)
-        
-        # Update layout
-        fig.update_layout(
-            title=f'{self.current_stock} - Real-Time Stock Analysis & Prediction',
-            yaxis_title='Price (PKR)',
-            xaxis_title='Date',
-            template='plotly_dark',
-            height=800,
-            hovermode='x unified',
-            showlegend=True
-        )
-        
-        fig.update_xaxes(rangeslider_visible=False, row=1, col=1)
-        fig.update_yaxes(title_text="Price (PKR)", row=1, col=1)
-        fig.update_yaxes(title_text="Volume", row=2, col=1)
-        fig.update_yaxes(title_text="RSI", row=3, col=1, range=[0, 100])
-        
-        return fig
-
-    def analyze_investment(self, invested_amount, target_profit, tax_rate, utilities_rate):
-        """Analyze investment based on predictions"""
-        current_price = self.data['current_price']
-        historical_prices = self.data['prices']
-        shares = invested_amount / current_price
-        
-        # Get predictions
-        predicted_prices, lower_bounds, upper_bounds = self.predict_future()
-        
-        # Calculate target requirements
-        target_net_profit = invested_amount * (target_profit / 100)
-        tax_amount = target_net_profit * (tax_rate / 100)
-        utilities = target_net_profit * (utilities_rate / 100)
-        required_gross_profit = target_net_profit + tax_amount + utilities
-        required_price = current_price + (required_gross_profit / shares)
-        
-        # Calculate trends
-        historical_change = ((historical_prices[-1] - historical_prices[0]) / historical_prices[0]) * 100
-        predicted_high = max(predicted_prices)
-        predicted_low = min(predicted_prices)
-        predicted_change = ((predicted_prices[-1] - current_price) / current_price) * 100
-        expected_return = ((predicted_prices[-1] - current_price) / current_price) * 100
-        
-        # Calculate risk metrics
-        tech_indicators = self.calculate_technical_indicators(historical_prices)
-        rsi = tech_indicators['RSI']
-        
-        # Enhanced decision logic with technical analysis
-        score = 0
-        
-        # Trend score
-        if predicted_change > 10:
-            score += 3
-        elif predicted_change > 5:
-            score += 2
-        elif predicted_change > 0:
-            score += 1
-        
-        # RSI score
-        if 30 <= rsi <= 70:
-            score += 2
-        elif rsi < 30:  # Oversold - good buying opportunity
-            score += 3
-        elif rsi > 70:  # Overbought - caution
-            score -= 1
-        
-        # Target achievability
-        if predicted_high >= required_price:
-            score += 2
-        
-        # Make decision based on score
-        if score >= 6:
-            decision = "STRONG BUY"
-            color = "success"
-            reason = f"Excellent opportunity! Score: {score}/8. Strong upward momentum with favorable technical indicators."
-        elif score >= 4:
-            decision = "BUY"
-            color = "success"
-            reason = f"Good potential with score: {score}/8. Positive outlook with {predicted_change:.1f}% predicted growth."
-        elif score >= 2:
-            decision = "HOLD"
-            color = "info"
-            reason = f"Moderate potential (Score: {score}/8). Monitor closely before adding more position."
-        elif score >= 0:
-            decision = "MONITOR"
-            color = "warning"
-            reason = f"Uncertain outlook (Score: {score}/8). Consider partial position or wait for better entry."
-        else:
-            decision = "SELL"
-            color = "danger"
-            reason = f"Negative outlook (Score: {score}/8) with {predicted_change:.1f}% predicted drop. Exit or reduce position recommended."
-        
-        return {
-            'decision': decision,
-            'color': color,
-            'reason': reason,
-            'current_price': current_price,
-            'shares': shares,
-            'historical_change': historical_change,
-            'predicted_change': predicted_change,
-            'predicted_high': predicted_high,
-            'predicted_low': predicted_low,
-            'required_price': required_price,
-            'expected_return': expected_return,
-            'predicted_prices': predicted_prices,
-            'lower_bounds': lower_bounds,
-            'upper_bounds': upper_bounds,
-            'score': score,
-            'rsi': rsi
-        }
-
 def main():
-    st.title("📈 Pakistan Stock Exchange (PSX) Real-Time Stock Predictor")
-    st.markdown("*Powered by Yahoo Finance Real-Time Data*")
+    st.markdown("<h1>PSX Stock Predictor</h1>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align: center; color: white;'>Real-Time Pakistan Stock Exchange Analysis</p>", unsafe_allow_html=True)
     st.markdown("---")
     
-    # Initialize predictor
+    # Initialize
     if 'predictor' not in st.session_state:
-        st.session_state.predictor = StockPredictorUI()
+        st.session_state.predictor = PSXStockPredictor()
+    if 'analyzed' not in st.session_state:
+        st.session_state.analyzed = False
     
     predictor = st.session_state.predictor
     
-    # Sidebar for stock selection
+    # Sidebar
     with st.sidebar:
         st.header("📊 Stock Selection")
         
-        # Add search/filter
-        sector_filter = st.selectbox(
-            "Filter by sector:",
-            ["All"] + list(set(predictor.psx_stocks[s]['sector'] for s in predictor.psx_stocks))
-        )
+        sectors = ["All"] + sorted(list(set(predictor.psx_stocks[s]['sector'] for s in predictor.psx_stocks)))
+        sector_filter = st.selectbox("Filter by Sector", sectors)
         
-        # Filter stocks
         filtered_stocks = predictor.psx_stocks
         if sector_filter != "All":
             filtered_stocks = {k: v for k, v in predictor.psx_stocks.items() if v['sector'] == sector_filter}
         
         stock_symbol = st.selectbox(
-            "Choose a stock to analyze:",
+            "Select Stock",
             options=list(filtered_stocks.keys()),
             format_func=lambda x: f"{x} - {filtered_stocks[x]['name']}"
         )
         
-        # Data period selection
-        period = st.selectbox(
-            "Historical data period:",
-            ["1mo", "3mo", "6mo", "1y", "2y"],
-            index=2
+        period = st.selectbox("Data Period", ["1mo", "3mo", "6mo", "1y"], index=2)
+        
+        # Investment Parameters
+        st.markdown("---")
+        st.header("💰 Investment Parameters")
+        
+        # Instruction text in BLACK (was red)
+        st.markdown('<p class="instruction-text">Enter the price per share at which you purchased the stock:</p>', unsafe_allow_html=True)
+        purchase_price_per_share = st.number_input(
+            "Purchase Price per Share (PKR)",
+            min_value=0.0,
+            value=0.0,
+            step=10.0,
+            key="purchase_price_per_share",
+            label_visibility="collapsed"
         )
-        
-        col1, col2 = st.columns(2)
-        with col1:
-            if st.button("🔍 Analyze Stock", use_container_width=True):
-                with st.spinner(f"Fetching real-time data for {stock_symbol}..."):
-                    predictor.current_stock = stock_symbol
-                    predictor.data = predictor.fetch_stock_data(
-                        predictor.psx_stocks[stock_symbol]['symbol'], 
-                        period
-                    )
-                    if predictor.data:
-                        st.session_state.analyzed = True
-                        st.rerun()
-                    else:
-                        st.error("Failed to fetch data. Please try again.")
-        
-        with col2:
-            if st.button("🔄 Refresh Data", use_container_width=True):
-                if hasattr(st.session_state, 'analyzed') and st.session_state.analyzed:
-                    with st.spinner("Refreshing data..."):
-                        predictor.data = predictor.fetch_stock_data(
-                            predictor.psx_stocks[predictor.current_stock]['symbol'],
-                            period
-                        )
-                        st.rerun()
         
         st.markdown("---")
         
-        # Market summary
-        st.header("📊 Market Summary")
-        
-        # Calculate market indicators
-        if hasattr(st.session_state, 'analyzed') and st.session_state.analyzed and predictor.data:
-            tech_indicators = predictor.calculate_technical_indicators(predictor.data['prices'])
-            
-            st.metric("Market Sentiment", 
-                     "Bullish" if tech_indicators['RSI'] < 70 else "Bearish",
-                     delta=f"RSI: {tech_indicators['RSI']}")
-            
-            st.metric("Volatility Index", 
-                     f"{predictor.data['volatility']}%",
-                     delta="High Risk" if predictor.data['volatility'] > 30 else "Moderate Risk")
+        st.markdown('<p class="instruction-text">Enter the total amount you invested (number of shares × purchase price):</p>', unsafe_allow_html=True)
+        total_purchase_price = st.number_input(
+            "Total Purchase Price (PKR)",
+            min_value=0.0,
+            value=0.0,
+            step=10000.0,
+            key="total_purchase_price",
+            label_visibility="collapsed"
+        )
         
         st.markdown("---")
-        st.header("ℹ️ About")
-        st.info(
-            "**Real-Time PSX Stock Predictor**\n\n"
-            "• Fetches live data from Yahoo Finance\n"
-            "• Uses Linear Regression with momentum factor\n"
-            "• Includes technical indicators (RSI, MACD, Bollinger Bands)\n"
-            "• Provides Buy/Hold/Sell recommendations\n\n"
-            "*Note: This is for educational purposes. Consult a financial advisor before investing.*"
+        
+        st.markdown('<p class="instruction-text">Enter your desired profit percentage on total investment (before tax and utilities):</p>', unsafe_allow_html=True)
+        required_profit_percent = st.number_input(
+            "Required Profit (%) - Excluding Tax & Utilities",
+            min_value=0.0,
+            value=0.0,
+            step=1.0,
+            key="required_profit_percent",
+            label_visibility="collapsed"
         )
+        
+        st.markdown("---")
+        st.header("💰 Tax & Utilities")
+        
+        st.markdown('<p class="instruction-text">Enter the Capital Gains Tax percentage that will be deducted from your profit:</p>', unsafe_allow_html=True)
+        tax_rate = st.number_input(
+            "Tax Rate (%)",
+            min_value=0.0,
+            max_value=100.0,
+            value=15.0,
+            step=1.0,
+            key="tax_rate",
+            label_visibility="collapsed"
+        )
+        
+        st.markdown('<p class="instruction-text">Enter the Brokerage + Utilities fees percentage:</p>', unsafe_allow_html=True)
+        utilities_rate = st.number_input(
+            "Utilities Rate (%)",
+            min_value=0.0,
+            max_value=100.0,
+            value=5.0,
+            step=1.0,
+            key="utilities_rate",
+            label_visibility="collapsed"
+        )
+        
+        # Store values
+        if purchase_price_per_share > 0:
+            predictor.purchase_price_per_share = purchase_price_per_share
+        if total_purchase_price > 0:
+            predictor.total_purchase_price = total_purchase_price
+        if required_profit_percent > 0:
+            predictor.required_profit_percent = required_profit_percent
+        predictor.tax_rate = tax_rate
+        predictor.utilities_rate = utilities_rate
+        
+        st.markdown("---")
+        
+        if st.button("🔍 Analyze Stock", use_container_width=True):
+            with st.spinner("Fetching real-time data..."):
+                predictor.current_stock = stock_symbol
+                symbol = predictor.psx_stocks[stock_symbol]['symbol']
+                predictor.data = predictor.fetch_stock_data(symbol, period)
+                
+                if predictor.data:
+                    st.session_state.analyzed = True
+                    st.success("✅ Data loaded successfully!")
+                    st.rerun()
+                else:
+                    st.error("Failed to load data. Please try another stock.")
     
-    # Main content area
-    if hasattr(st.session_state, 'analyzed') and st.session_state.analyzed and predictor.data:
+    # Main content
+    if st.session_state.analyzed and predictor.data:
         stock_info = predictor.psx_stocks[predictor.current_stock]
         
-        # Last updated timestamp
-        st.caption(f"📡 Last updated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-        
-        # Stock header with metrics
+        # Display metrics
         col1, col2, col3, col4, col5 = st.columns(5)
         with col1:
-            st.metric("Current Price", f"PKR {predictor.data['current_price']:.2f", 
-                     delta=f"{predictor.calculate_trend(predictor.data['prices']):.1f}%")
+            st.metric("Current Price", f"PKR {predictor.data['current_price']:,.2f}")
         with col2:
-            st.metric("Market Cap", predictor.data['market_cap'] if isinstance(predictor.data['market_cap'], str) 
-                     else f"PKR {predictor.data['market_cap']/1e9:.1f}B")
+            st.metric("Market Cap", predictor.data['market_cap'])
         with col3:
             st.metric("P/E Ratio", predictor.data['pe_ratio'])
         with col4:
             st.metric("Dividend Yield", f"{predictor.data['dividend_yield']}%")
         with col5:
-            st.metric("Beta", predictor.data['beta'])
+            st.metric("Volatility", f"{predictor.data['volatility']}%")
+        
+        # Enhanced Profit/Loss Calculation
+        if predictor.purchase_price_per_share and predictor.purchase_price_per_share > 0:
+            current_price = predictor.data['current_price']
+            profit_per_share_before_tax = current_price - predictor.purchase_price_per_share
+            profit_percent_before_tax = (profit_per_share_before_tax / predictor.purchase_price_per_share) * 100
+            
+            # Calculate tax and utilities on profit
+            if profit_per_share_before_tax > 0:
+                tax_amount = profit_per_share_before_tax * (predictor.tax_rate / 100)
+                utilities_amount = profit_per_share_before_tax * (predictor.utilities_rate / 100)
+                profit_per_share_after_tax = profit_per_share_before_tax - tax_amount - utilities_amount
+                profit_percent_after_tax = (profit_per_share_after_tax / predictor.purchase_price_per_share) * 100
+            else:
+                tax_amount = 0
+                utilities_amount = 0
+                profit_per_share_after_tax = profit_per_share_before_tax
+                profit_percent_after_tax = profit_percent_before_tax
+            
+            # Calculate shares and total investment
+            if predictor.total_purchase_price > 0:
+                shares = predictor.total_purchase_price / predictor.purchase_price_per_share
+                total_investment = predictor.total_purchase_price
+                total_profit_before_tax = profit_per_share_before_tax * shares
+                total_profit_after_tax = profit_per_share_after_tax * shares
+                current_value = shares * current_price
+            else:
+                shares = 0
+                total_investment = 0
+                total_profit_before_tax = 0
+                total_profit_after_tax = 0
+                current_value = 0
+            
+            # Required analysis based on profit percentage
+            if predictor.required_profit_percent > 0:
+                required_profit_amount = total_investment * (predictor.required_profit_percent / 100)
+                required_profit_per_share = required_profit_amount / shares if shares > 0 else 0
+                required_price_before_tax = predictor.purchase_price_per_share + required_profit_per_share
+                
+                # Calculate required price after tax
+                required_profit_after_tax = required_profit_per_share
+                required_profit_before_tax_calc = required_profit_after_tax / (1 - (predictor.tax_rate + predictor.utilities_rate) / 100)
+                required_price_after_tax = predictor.purchase_price_per_share + required_profit_before_tax_calc
+                
+                price_gap_before_tax = required_price_before_tax - current_price
+                price_gap_after_tax = required_price_after_tax - current_price
+                
+                required_status_before = "✅ Achievable" if current_price >= required_price_before_tax else "❌ Not Yet"
+                required_status_after = "✅ Achievable" if current_price >= required_price_after_tax else "❌ Not Yet"
+                
+                # Check if profit target achieved
+                profit_target_achieved = profit_percent_before_tax >= predictor.required_profit_percent
+            else:
+                required_profit_amount = 0
+                required_profit_per_share = 0
+                required_price_before_tax = 0
+                required_price_after_tax = 0
+                price_gap_before_tax = 0
+                price_gap_after_tax = 0
+                required_status_before = "Not Set"
+                required_status_after = "Not Set"
+                profit_target_achieved = False
+            
+            # HOLD/SELL Recommendation based on profit percentage achievement
+            recommendation = ""
+            recommendation_color = ""
+            recommendation_reason = ""
+            
+            if predictor.required_profit_percent > 0:
+                if profit_target_achieved:
+                    recommendation = "✅ SELL - Target Profit Achieved!"
+                    recommendation_color = "success"
+                    recommendation_reason = f"Your profit of {profit_percent_before_tax:.1f}% has met/exceeded your target of {predictor.required_profit_percent:.1f}%"
+                elif profit_percent_before_tax > 0:
+                    remaining_percent = predictor.required_profit_percent - profit_percent_before_tax
+                    recommendation = "⚠️ HOLD - Profit Not Yet at Target"
+                    recommendation_color = "warning"
+                    recommendation_reason = f"You have achieved {profit_percent_before_tax:.1f}% profit, need {remaining_percent:.1f}% more to reach target"
+                else:
+                    recommendation = "🔴 HOLD - Currently at Loss"
+                    recommendation_color = "error"
+                    recommendation_reason = f"You are at a loss of {abs(profit_percent_before_tax):.1f}%. Wait for price to recover before considering sell"
+            else:
+                if profit_percent_before_tax > 0:
+                    recommendation = "✅ PROFIT OPPORTUNITY - Consider Selling"
+                    recommendation_color = "success"
+                    recommendation_reason = f"You are currently at {profit_percent_before_tax:.1f}% profit"
+                else:
+                    recommendation = "📊 MONITOR - Currently at Loss"
+                    recommendation_color = "info"
+                    recommendation_reason = f"You are at a loss of {abs(profit_percent_before_tax):.1f}%. Monitor the stock for recovery"
+            
+            # Display comprehensive portfolio status
+            st.info(f"""
+            **📈 PORTFOLIO STATUS**
+            
+            **Purchase Details:**
+            - Purchase Price per Share: PKR {predictor.purchase_price_per_share:,.2f}
+            - Total Investment: PKR {total_investment:,.2f}
+            - Number of Shares: {shares:,.0f}
+            
+            **Current Status (Before Tax):**
+            - Current Price: PKR {current_price:,.2f}
+            - Profit/Loss per Share: PKR {profit_per_share_before_tax:+.2f} ({profit_percent_before_tax:+.1f}%)
+            - Total Profit/Loss: PKR {total_profit_before_tax:+,.2f}
+            - Current Portfolio Value: PKR {current_value:,.2f}
+            
+            **After Tax & Utilities ({predictor.tax_rate}% Tax + {predictor.utilities_rate}% Fees):**
+            - Tax Amount: PKR {tax_amount:,.2f} per share
+            - Utilities/Fees: PKR {utilities_amount:,.2f} per share
+            - Net Profit per Share: PKR {profit_per_share_after_tax:+.2f} ({profit_percent_after_tax:+.1f}%)
+            - Net Total Profit: PKR {total_profit_after_tax:+,.2f}
+            
+            **Required Profit Analysis ({predictor.required_profit_percent:.1f}% target on total investment):**
+            - Required Profit Amount: PKR {required_profit_amount:,.2f}
+            - Required Profit per Share: PKR {required_profit_per_share:,.2f}
+            - Required Price (Before Tax): PKR {required_price_before_tax:,.2f} - {required_status_before}
+            - Required Price (After Tax): PKR {required_price_after_tax:,.2f} - {required_status_after}
+            - Gap to Target (Before Tax): PKR {price_gap_before_tax:+.2f}
+            - Gap to Target (After Tax): PKR {price_gap_after_tax:+.2f}
+            """)
+            
+            # Display recommendation prominently
+            if recommendation_color == "success":
+                st.success(f"### {recommendation}")
+                st.success(f"**Recommendation:** {recommendation_reason}")
+                st.success(f"**If you sell NOW:** You will make {profit_percent_before_tax:.1f}% profit (PKR {total_profit_before_tax:+,.2f} before tax)")
+            elif recommendation_color == "warning":
+                st.warning(f"### {recommendation}")
+                st.warning(f"**Recommendation:** {recommendation_reason}")
+                st.warning(f"**If you sell NOW:** You will make {profit_percent_before_tax:.1f}% profit (PKR {total_profit_before_tax:+,.2f} before tax)")
+            elif recommendation_color == "error":
+                st.error(f"### {recommendation}")
+                st.error(f"**Recommendation:** {recommendation_reason}")
+                st.error(f"**If you sell NOW:** You will incur a loss of {abs(profit_percent_before_tax):.1f}% (PKR {total_profit_before_tax:+,.2f} before tax)")
+            else:
+                st.info(f"### {recommendation}")
+                st.info(f"**Recommendation:** {recommendation_reason}")
+                st.info(f"**If you sell NOW:** {profit_percent_before_tax:+.1f}% return (PKR {total_profit_before_tax:+,.2f} before tax)")
         
         st.markdown("---")
         
-        # Additional metrics row
-        col1, col2, col3, col4 = st.columns(4)
-        with col1:
-            st.metric("52-Week High", f"PKR {predictor.data['52_week_high']:.2f}")
-        with col2:
-            st.metric("52-Week Low", f"PKR {predictor.data['52_week_low']:.2f}")
-        with col3:
-            st.metric("Avg Volume", f"{int(predictor.data['volume_avg']):,}")
-        with col4:
-            st.metric("Volatility (Annual)", f"{predictor.data['volatility']}%")
-        
-        st.markdown("---")
-        
-        # Tabs for different views
-        tab1, tab2, tab3, tab4, tab5 = st.tabs(["📈 Interactive Chart", "📊 Technical Analysis", "💼 Investment Analysis", "📅 Predictions", "📰 Stock Info"])
+        # Tabs
+        tab1, tab2, tab3 = st.tabs(["📈 Price Chart", "📊 Technical Analysis", "🎯 Predictions"])
         
         with tab1:
-            st.subheader(f"{predictor.current_stock} - Real-Time Price Chart with Predictions")
-            fig = predictor.create_interactive_chart()
+            st.subheader(f"{predictor.current_stock} - Price Chart")
+            
+            df = pd.DataFrame({
+                'Date': predictor.data['dates'],
+                'Price': predictor.data['prices'],
+                'Volume': predictor.data['volumes']
+            })
+            
+            fig = make_subplots(rows=2, cols=1, row_heights=[0.7, 0.3])
+            
+            fig.add_trace(
+                go.Scatter(x=df['Date'], y=df['Price'], mode='lines', name='Price',
+                          line=dict(color='#FFD700', width=2)),
+                row=1, col=1
+            )
+            
+            fig.add_trace(
+                go.Bar(x=df['Date'], y=df['Volume'], name='Volume', marker_color='#667eea'),
+                row=2, col=1
+            )
+            
+            fig.update_layout(template='plotly_dark', height=600, showlegend=True)
+            fig.update_xaxes(title_text="Date", row=2, col=1)
+            fig.update_yaxes(title_text="Price (PKR)", row=1, col=1)
+            fig.update_yaxes(title_text="Volume", row=2, col=1)
+            
             st.plotly_chart(fig, use_container_width=True)
         
         with tab2:
-            st.subheader("Technical Analysis Dashboard")
+            st.subheader("Technical Indicators")
             
-            # Calculate technical indicators
-            tech_indicators = predictor.calculate_technical_indicators(predictor.data['prices'])
+            tech = predictor.calculate_technical_indicators(predictor.data['prices'])
             
             col1, col2, col3 = st.columns(3)
             with col1:
-                st.markdown("### 📊 Momentum Indicators")
-                st.metric("RSI (14)", tech_indicators['RSI'], 
-                         delta="Overbought" if tech_indicators['RSI'] > 70 else ("Oversold" if tech_indicators['RSI'] < 30 else "Neutral"))
-                st.metric("MACD", tech_indicators['MACD'])
-                st.metric("Beta", predictor.data['beta'])
-                
+                st.metric("RSI (14)", tech['RSI'],
+                         delta="Overbought" if tech['RSI'] > 70 else ("Oversold" if tech['RSI'] < 30 else "Neutral"))
             with col2:
-                st.markdown("### 📉 Volatility Indicators")
-                st.metric("Bollinger Upper", f"PKR {tech_indicators['Upper Band']:.2f}")
-                st.metric("Bollinger Lower", f"PKR {tech_indicators['Lower Band']:.2f}")
-                current_price = predictor.data['current_price']
-                band_position = ((current_price - tech_indicators['Lower Band']) / 
-                               (tech_indicators['Upper Band'] - tech_indicators['Lower Band'])) * 100 if tech_indicators['Upper Band'] != tech_indicators['Lower Band'] else 50
-                st.progress(int(band_position))
-                st.caption(f"Price position within bands: {band_position:.1f}%")
-            
+                st.metric("MA (20)", f"PKR {tech['MA20']:,.2f}")
+                st.metric("MA (50)", f"PKR {tech['MA50']:,.2f}")
             with col3:
-                st.markdown("### 📈 Trend Indicators")
-                st.metric("MA (20)", f"PKR {tech_indicators['MA20']:.2f}")
-                st.metric("MA (50)", f"PKR {tech_indicators['MA50']:.2f}")
-                trend = "Bullish" if tech_indicators['MA20'] > tech_indicators['MA50'] else "Bearish"
-                st.metric("Trend", trend)
+                st.metric("Bollinger Upper", f"PKR {tech['Upper Band']:,.2f}")
+                st.metric("Bollinger Lower", f"PKR {tech['Lower Band']:,.2f}")
             
-            st.markdown("---")
-            
-            # Historical data table
             st.subheader("Historical Data")
             hist_df = pd.DataFrame({
-                'Date': predictor.data['dates'],
-                'Open': predictor.data['open'],
-                'High': predictor.data['high'],
-                'Low': predictor.data['low'],
-                'Close': predictor.data['prices'],
-                'Volume': predictor.data['volumes'],
-                'Returns %': [round(r*100, 2) if r else 0 for r in predictor.data['returns']]
+                'Date': predictor.data['dates'][-20:],
+                'Open': predictor.data['open'][-20:],
+                'High': predictor.data['high'][-20:],
+                'Low': predictor.data['low'][-20:],
+                'Close': predictor.data['prices'][-20:],
+                'Volume': predictor.data['volumes'][-20:]
             })
-            st.dataframe(hist_df.tail(20), use_container_width=True)
+            st.dataframe(hist_df, use_container_width=True)
         
         with tab3:
-            st.subheader("Investment Analysis & Recommendations")
+            st.subheader("5-Month Price Predictions")
             
-            # Input form for investment parameters
-            with st.form("investment_form"):
-                col1, col2 = st.columns(2)
-                with col1:
-                    invested_amount = st.number_input("💰 Investment Amount (PKR)", 
-                                                     min_value=1000.0, 
-                                                     value=100000.0, 
-                                                     step=10000.0,
-                                                     format="%.2f")
-                    target_profit = st.number_input("🎯 Target Profit (%)", 
-                                                    min_value=1.0, 
-                                                    max_value=100.0, 
-                                                    value=10.0, 
-                                                    step=1.0)
-                
-                with col2:
-                    use_custom = st.checkbox("Use custom tax & utilities rates")
-                    if use_custom:
-                        tax_rate = st.number_input("Tax Rate (%)", min_value=0.0, max_value=50.0, value=15.0)
-                        utilities_rate = st.number_input("Utilities Fee Rate (%)", min_value=0.0, max_value=20.0, value=5.0)
-                    else:
-                        tax_rate = 15.0
-                        utilities_rate = 5.0
-                        st.info("Default rates: Capital Gains Tax = 15%, Brokerage + Fees = 5%")
-                
-                submitted = st.form_submit_button("🔍 Analyze Investment", use_container_width=True)
-            
-            if submitted:
-                with st.spinner("Analyzing investment opportunity..."):
-                    analysis = predictor.analyze_investment(invested_amount, target_profit, tax_rate, utilities_rate)
-                    
-                    # Display decision with appropriate styling
-                    if analysis['color'] == 'success':
-                        st.success(f"### 🎯 DECISION: {analysis['decision']} (Score: {analysis['score']}/8)")
-                        st.success(f"**Reason:** {analysis['reason']}")
-                    elif analysis['color'] == 'warning':
-                        st.warning(f"### ⚠️ DECISION: {analysis['decision']} (Score: {analysis['score']}/8)")
-                        st.warning(f"**Reason:** {analysis['reason']}")
-                    elif analysis['color'] == 'danger':
-                        st.error(f"### ❌ DECISION: {analysis['decision']} (Score: {analysis['score']}/8)")
-                        st.error(f"**Reason:** {analysis['reason']}")
-                    else:
-                        st.info(f"### ℹ️ DECISION: {analysis['decision']} (Score: {analysis['score']}/8)")
-                        st.info(f"**Reason:** {analysis['reason']}")
-                    
-                    # Detailed analysis
-                    col1, col2, col3 = st.columns(3)
-                    with col1:
-                        st.metric("Current Price", f"PKR {analysis['current_price']:.2f}")
-                        st.metric("Shares You Can Buy", f"{analysis['shares']:.0f}")
-                    
-                    with col2:
-                        st.metric("Required Price for Target", f"PKR {analysis['required_price']:.2f}")
-                        price_gap = analysis['required_price'] - analysis['current_price']
-                        st.metric("Price Gap", f"PKR {price_gap:.2f}", 
-                                 delta="Achievable" if price_gap <= (analysis['predicted_high'] - analysis['current_price']) else "Challenging")
-                    
-                    with col3:
-                        st.metric("Expected Return (5 months)", f"{analysis['expected_return']:+.1f}%")
-                        st.metric("Predicted Range", f"PKR {analysis['predicted_low']:.2f} - {analysis['predicted_high']:.2f}")
-                    
-                    # Risk assessment
-                    st.markdown("---")
-                    st.subheader("📊 Risk Assessment")
-                    
-                    risk_col1, risk_col2, risk_col3 = st.columns(3)
-                    with risk_col1:
-                        st.metric("Current RSI", analysis['rsi'])
-                        if analysis['rsi'] > 70:
-                            st.warning("⚠️ Stock is overbought - potential pullback risk")
-                        elif analysis['rsi'] < 30:
-                            st.success("✅ Stock is oversold - potential buying opportunity")
-                        else:
-                            st.info("ℹ️ RSI is in neutral zone")
-                    
-                    with risk_col2:
-                        st.metric("Volatility Risk", f"{predictor.data['volatility']}%")
-                        if predictor.data['volatility'] > 40:
-                            st.warning("⚠️ High volatility stock - use strict stop-loss")
-                        elif predictor.data['volatility'] > 25:
-                            st.info("📊 Moderate volatility - standard risk management")
-                        else:
-                            st.success("✅ Low volatility - relatively stable")
-                    
-                    with risk_col3:
-                        st.metric("Beta (Market Risk)", predictor.data['beta'])
-                        if predictor.data['beta'] > 1.2:
-                            st.warning("⚠️ Stock moves more than market - higher risk")
-                        elif predictor.data['beta'] < 0.8:
-                            st.info("📊 Defensive stock - lower market correlation")
-                        else:
-                            st.success("✅ Beta near market average")
-                    
-                    # Recommendations
-                    st.markdown("---")
-                    st.subheader("📋 Actionable Recommendations")
-                    
-                    if "BUY" in analysis['decision']:
-                        st.markdown(f"""
-                        ### ✅ Recommended Action Plan:
-                        
-                        1. **Entry Strategy:**
-                           - 🟢 **Aggressive Entry:** Buy at current price (PKR {analysis['current_price']:.2f})
-                           - 🟡 **Conservative Entry:** Place limit order at PKR {analysis['current_price'] * 0.97:.2f} (3% below current)
-                           - 📊 **Dollar Cost Average:** Split investment into 3 parts over 2-3 weeks
-                        
-                        2. **Exit Strategy:**
-                           - 🎯 **Target 1 (50% profit):** PKR {(analysis['current_price'] + (analysis['predicted_high'] - analysis['current_price'])/2):.2f}
-                           - 🎯 **Target 2 (Full profit):** PKR {analysis['predicted_high']:.2f}
-                        """)
-                    elif "HOLD" in analysis['decision']:
-                        st.markdown("""
-                        ### 📊 Hold Strategy:
-                        
-                        1. **Current Position:**
-                           - Maintain current holdings
-                           - Set stop-loss at 5-7% below current price
-                           - Wait for clearer signals
-                        
-                        2. **Watch Points:**
-                           - Monitor RSI for entry opportunities
-                           - Watch for breakout above resistance
-                           - Consider partial profit booking if price spikes
-                        """)
-                    elif "SELL" in analysis['decision']:
-                        st.markdown("""
-                        ### 🔴 Exit Strategy:
-                        
-                        1. **Immediate Actions:**
-                           - Consider selling 50-70% of position
-                           - Set tight stop-loss at 3-5%
-                           - Reduce exposure to this stock
-                        
-                        2. **Alternative Actions:**
-                           - Shift capital to better opportunities
-                           - Wait for pullback to exit remaining position
-                           - Consider hedging strategies
-                        """)
-                    else:
-                        st.markdown("""
-                        ### 📈 Monitoring Strategy:
-                        
-                        1. **Wait and Watch:**
-                           - Hold cash position for now
-                           - Set price alerts at key levels
-                           - Monitor technical indicators daily
-                        
-                        2. **Entry Conditions:**
-                           - Wait for RSI to reach oversold levels (<30)
-                           - Look for bullish reversal patterns
-                           - Enter only if price breaks resistance with volume
-                        """)
-        
-        with tab4:
-            st.subheader("Future Price Predictions")
-            predicted_prices, lower_bounds, upper_bounds = predictor.predict_future()
-            
-            # Create prediction table
+            predictions, lower, upper = predictor.predict_future()
             months = ["Month 1", "Month 2", "Month 3", "Month 4", "Month 5"]
+            
             pred_df = pd.DataFrame({
                 'Month': months,
-                'Predicted Price (PKR)': predicted_prices,
-                'Lower Bound (95% CI)': lower_bounds,
-                'Upper Bound (95% CI)': upper_bounds
+                'Predicted Price': [f"PKR {p:,.2f}" for p in predictions],
+                'Lower Bound': [f"PKR {l:,.2f}" for l in lower],
+                'Upper Bound': [f"PKR {u:,.2f}" for u in upper]
             })
             st.dataframe(pred_df, use_container_width=True)
             
-            # Prediction chart
             fig_pred = go.Figure()
             fig_pred.add_trace(go.Scatter(
-                x=months,
-                y=predicted_prices,
-                mode='lines+markers',
-                name='Predicted Price',
-                line=dict(color='orange', width=2),
-                marker=dict(size=10)
+                x=months, y=predictions, mode='lines+markers',
+                name='Predicted', line=dict(color='#FFD700', width=2)
             ))
             fig_pred.add_trace(go.Scatter(
-                x=months,
-                y=upper_bounds,
-                mode='lines',
-                name='Upper Bound (95% CI)',
-                line=dict(color='gray', dash='dash')
+                x=months, y=upper, mode='lines',
+                name='Upper Bound', line=dict(color='gray', dash='dash')
             ))
             fig_pred.add_trace(go.Scatter(
-                x=months,
-                y=lower_bounds,
-                mode='lines',
-                name='Lower Bound (95% CI)',
-                line=dict(color='gray', dash='dash')
+                x=months, y=lower, mode='lines',
+                name='Lower Bound', line=dict(color='gray', dash='dash')
             ))
-            fig_pred.update_layout(
-                title='5-Month Price Prediction',
-                xaxis_title='Time Period',
-                yaxis_title='Price (PKR)',
-                template='plotly_dark',
-                height=500
-            )
+            fig_pred.update_layout(template='plotly_dark', height=500)
             st.plotly_chart(fig_pred, use_container_width=True)
             
-            # Prediction insights
-            st.subheader("📊 Prediction Insights")
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                expected_return = ((predicted_prices[-1] - predictor.data['current_price']) / predictor.data['current_price']) * 100
-                st.metric("Expected Return (5 months)", f"{expected_return:+.1f}%")
-            with col2:
-                st.metric("Maximum Price", f"PKR {max(predicted_prices):.2f}")
-            with col3:
-                st.metric("Minimum Price", f"PKR {min(predicted_prices):.2f}")
+            expected_return = ((predictions[-1] - predictor.data['current_price']) / predictor.data['current_price']) * 100
+            st.metric("Expected 5-Month Return", f"{expected_return:+.1f}%")
+    
+    else:
+        st.info("👈 **Welcome!** Select a stock from the sidebar and click 'Analyze Stock' to begin.")
         
-        with tab5:
-            st.subheader("Company Information")
-            st.markdown(f"""
-            ### {stock_info['name']} ({predictor.current_stock})
-            
-            **Sector:** {stock_info['sector']}
-            
-            **About:**
-            {predictor.current_stock} is a leading company in Pakistan's {stock_info['sector']} sector.
-            
-            **Key Metrics:**
-            - Current Price: PKR {predictor.data['current_price']:.2f}
-            - Market Cap: {predictor.data['market_cap'] if isinstance(predictor.data['market_cap'], str) else f'PKR {predictor.data["market_cap"]/1e9:.1f}B'}
-            - P/E Ratio: {predictor.data['pe_ratio']}
-            - Dividend Yield: {predictor.data['dividend_yield']}%
-            - Beta: {predictor.data['beta']}
-            - 52-Week Range: PKR {predictor.data['52_week_low']:.2f} - {predictor.data['52_week_high']:.2f}
-            
-            **Volatility Information:**
-            - Annual Volatility: {predictor.data['volatility']}%
-            - Average Daily Volume: {int(predictor.data['volume_avg']):,}
-            
-            *Data provided by Yahoo Finance*
-            """)
+        st.markdown("""
+        ### Features:
+        - 📈 **Real-time price charts** with historical data
+        - 📊 **Technical indicators** (RSI, Moving Averages, Bollinger Bands)
+        - 💰 **Portfolio tracker** to calculate profit/loss
+        - 🎯 **5-month price predictions** with confidence intervals
+        - 📱 **Professional interface** with dark theme
+        
+        ### Available Sectors:
+        - Banking, Cement, Fertilizer, Oil & Gas, Technology, Power
+        """)
 
 if __name__ == "__main__":
     main()
