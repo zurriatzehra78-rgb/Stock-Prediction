@@ -111,7 +111,7 @@ st.markdown("""
         border-color: rgba(0,0,0,0.2) !important;
     }
     
-    /* CHANGE: Instruction text in BLACK (was red) */
+    /* Instruction text */
     .instruction-text {
         color: #000000 !important;
         font-weight: bold !important;
@@ -120,6 +120,251 @@ st.markdown("""
     }
 </style>
 """, unsafe_allow_html=True)
+
+class AdvancedTrendAnalyzer:
+    """Advanced trend analysis for buy/sell signals"""
+    
+    def __init__(self, prices, volumes, highs, lows):
+        self.prices = prices
+        self.volumes = volumes
+        self.highs = highs
+        self.lows = lows
+        self.n = len(prices)
+    
+    def find_support_resistance(self, window=5):
+        """Find support and resistance levels"""
+        supports = []
+        resistances = []
+        
+        for i in range(window, self.n - window):
+            # Check for support (local minimum)
+            if all(self.prices[i] <= self.prices[i - j] for j in range(1, window + 1)) and \
+               all(self.prices[i] <= self.prices[i + j] for j in range(1, window + 1)):
+                supports.append(self.prices[i])
+            
+            # Check for resistance (local maximum)
+            if all(self.prices[i] >= self.prices[i - j] for j in range(1, window + 1)) and \
+               all(self.prices[i] >= self.prices[i + j] for j in range(1, window + 1)):
+                resistances.append(self.prices[i])
+        
+        # Get significant levels (clustered)
+        support_levels = self._cluster_levels(supports)
+        resistance_levels = self._cluster_levels(resistances)
+        
+        return support_levels[-3:] if support_levels else [], resistance_levels[-3:] if resistance_levels else []
+    
+    def _cluster_levels(self, levels, tolerance=0.02):
+        """Cluster nearby price levels"""
+        if not levels:
+            return []
+        
+        levels.sort()
+        clustered = []
+        current_cluster = [levels[0]]
+        
+        for level in levels[1:]:
+            if level / current_cluster[-1] - 1 < tolerance:
+                current_cluster.append(level)
+            else:
+                clustered.append(sum(current_cluster) / len(current_cluster))
+                current_cluster = [level]
+        
+        if current_cluster:
+            clustered.append(sum(current_cluster) / len(current_cluster))
+        
+        return clustered
+    
+    def detect_trend_strength(self):
+        """Detect trend direction and strength"""
+        if self.n < 14:
+            return "Insufficient data", 0
+        
+        # Calculate directional movement
+        plus_dm = []
+        minus_dm = []
+        tr = []
+        
+        for i in range(1, self.n):
+            high_diff = self.highs[i] - self.highs[i-1]
+            low_diff = self.lows[i-1] - self.lows[i]
+            
+            plus_dm.append(max(high_diff, 0) if high_diff > low_diff else 0)
+            minus_dm.append(max(low_diff, 0) if low_diff > high_diff else 0)
+            
+            # True Range
+            hl = self.highs[i] - self.lows[i]
+            hc = abs(self.highs[i] - self.prices[i-1])
+            lc = abs(self.lows[i] - self.prices[i-1])
+            tr.append(max(hl, hc, lc))
+        
+        # Smooth with 14-period EMA
+        period = min(14, len(plus_dm))
+        atr = sum(tr[-period:]) / period
+        
+        if atr == 0:
+            return "Sideways", 0
+        
+        plus_di = 100 * (sum(plus_dm[-period:]) / period) / atr if atr > 0 else 0
+        minus_di = 100 * (sum(minus_dm[-period:]) / period) / atr if atr > 0 else 0
+        
+        dx = 100 * abs(plus_di - minus_di) / (plus_di + minus_di) if (plus_di + minus_di) > 0 else 0
+        
+        if plus_di > minus_di:
+            trend = "Uptrend"
+            strength = "Strong" if dx > 25 else "Moderate" if dx > 20 else "Weak"
+        elif minus_di > plus_di:
+            trend = "Downtrend"
+            strength = "Strong" if dx > 25 else "Moderate" if dx > 20 else "Weak"
+        else:
+            trend = "Sideways"
+            strength = "Neutral"
+        
+        return f"{trend} ({strength})", dx
+    
+    def identify_chart_patterns(self):
+        """Identify common chart patterns"""
+        patterns = []
+        
+        # Check for double bottom (W pattern)
+        if self.n >= 20:
+            recent_prices = self.prices[-20:]
+            min1_idx = recent_prices.index(min(recent_prices[:10]))
+            min2_idx = recent_prices.index(min(recent_prices[10:]), 10) if len(recent_prices[10:]) > 0 else -1
+            
+            if min1_idx >= 0 and min2_idx > min1_idx:
+                # Check if bottoms are at similar levels
+                if abs(recent_prices[min1_idx] - recent_prices[min2_idx]) / recent_prices[min1_idx] < 0.03:
+                    # Check for higher low between bottoms
+                    between_min = recent_prices[min1_idx+1:min2_idx]
+                    if between_min and max(between_min) > recent_prices[min1_idx]:
+                        patterns.append("Double Bottom (Bullish Reversal)")
+        
+        # Check for head and shoulders
+        if self.n >= 30:
+            recent_prices = self.prices[-30:]
+            peaks = []
+            for i in range(5, len(recent_prices) - 5):
+                if recent_prices[i] > recent_prices[i-1] and recent_prices[i] > recent_prices[i+1]:
+                    peaks.append((i, recent_prices[i]))
+            
+            if len(peaks) >= 3:
+                left_shoulder = peaks[0]
+                head = max(peaks[1:-1], key=lambda x: x[1]) if len(peaks) > 2 else None
+                right_shoulder = peaks[-1]
+                
+                if head and head[1] > left_shoulder[1] and head[1] > right_shoulder[1]:
+                    patterns.append("Head & Shoulders (Bearish Reversal)")
+        
+        return patterns if patterns else ["No clear pattern detected"]
+    
+    def generate_signal(self, current_price, rsi, volume_profile=None):
+        """Generate buy/sell signal based on multiple factors"""
+        signals = []
+        confidence = 0
+        
+        # RSI signals
+        if rsi < 30:
+            signals.append("Oversold - Potential BUY opportunity")
+            confidence += 30
+        elif rsi > 70:
+            signals.append("Overbought - Potential SELL opportunity")
+            confidence += 30
+        else:
+            signals.append(f"RSI at {rsi:.1f} - Neutral zone")
+        
+        # Support/Resistance signals
+        supports, resistances = self.find_support_resistance()
+        
+        if supports and current_price <= supports[-1] * 1.02:
+            signals.append(f"Near support at PKR {supports[-1]:.2f} - Watch for bounce")
+            confidence += 25
+        
+        if resistances and current_price >= resistances[-1] * 0.98:
+            signals.append(f"Near resistance at PKR {resistances[-1]:.2f} - Watch for rejection")
+            confidence += 25
+        
+        # Trend signals
+        trend, strength_val = self.detect_trend_strength()
+        if "Uptrend" in trend and strength_val > 25:
+            signals.append(f"Strong {trend} - Consider holding/accumulating on dips")
+            confidence += 20
+        elif "Downtrend" in trend and strength_val > 25:
+            signals.append(f"Strong {trend} - Consider reducing exposure")
+            confidence += 20
+        elif "Uptrend" in trend:
+            signals.append(f"{trend} - Positive momentum")
+            confidence += 10
+        elif "Downtrend" in trend:
+            signals.append(f"{trend} - Negative momentum")
+            confidence += 10
+        
+        # Pattern signals
+        patterns = self.identify_chart_patterns()
+        for pattern in patterns:
+            if "Bullish" in pattern:
+                signals.append(f"{pattern}")
+                confidence += 15
+            elif "Bearish" in pattern:
+                signals.append(f"{pattern}")
+                confidence += 15
+            elif pattern != "No clear pattern detected":
+                signals.append(f"{pattern}")
+        
+        # Volume analysis (if available)
+        if volume_profile and len(volume_profile) >= 20:
+            avg_volume = sum(volume_profile[-20:]) / 20
+            recent_volume = volume_profile[-1]
+            volume_ratio = recent_volume / avg_volume if avg_volume > 0 else 1
+            
+            if volume_ratio > 1.5:
+                if "BUY" in str(signals).upper():
+                    signals.append(f"High volume ({volume_ratio:.1f}x avg) confirming bullish move")
+                elif "SELL" in str(signals).upper():
+                    signals.append(f"High volume ({volume_ratio:.1f}x avg) confirming bearish move")
+                else:
+                    signals.append(f"Unusual volume ({volume_ratio:.1f}x avg) - Watch for breakout")
+                confidence += 15
+            elif volume_ratio < 0.5:
+                signals.append(f"Low volume ({volume_ratio:.1f}x avg) - Possible consolidation")
+        
+        # Final recommendation
+        if confidence >= 55:
+            if "BUY" in str(signals).upper():
+                recommendation = "STRONG BUY / ACCUMULATE"
+                action = "strong_buy"
+            elif "SELL" in str(signals).upper():
+                recommendation = "STRONG SELL / REDUCE"
+                action = "strong_sell"
+            else:
+                recommendation = "BUY ON DIPS"
+                action = "buy"
+        elif confidence >= 35:
+            if "BUY" in str(signals).upper():
+                recommendation = "CAUTIOUS BUY"
+                action = "cautious_buy"
+            elif "SELL" in str(signals).upper():
+                recommendation = "CAUTIOUS SELL"
+                action = "cautious_sell"
+            else:
+                recommendation = "HOLD / MONITOR"
+                action = "hold"
+        elif confidence >= 20:
+            recommendation = "NEUTRAL - Wait for confirmation"
+            action = "neutral"
+        else:
+            recommendation = "NO CLEAR SIGNAL - Exercise patience"
+            action = "wait"
+        
+        return {
+            'recommendation': recommendation,
+            'action': action,
+            'confidence': confidence,
+            'signals': signals,
+            'support_levels': supports[-2:] if supports else [],
+            'resistance_levels': resistances[-2:] if resistances else [],
+            'trend': trend,
+            'patterns': patterns
+        }
 
 class PSXStockPredictor:
     def __init__(self):
@@ -291,7 +536,7 @@ def main():
     
     # Sidebar
     with st.sidebar:
-        st.header("📊 Stock Selection")
+        st.header("Stock Selection")
         
         sectors = ["All"] + sorted(list(set(predictor.psx_stocks[s]['sector'] for s in predictor.psx_stocks)))
         sector_filter = st.selectbox("Filter by Sector", sectors)
@@ -310,9 +555,8 @@ def main():
         
         # Investment Parameters
         st.markdown("---")
-        st.header("💰 Investment Parameters")
+        st.header("Investment Parameters")
         
-        # Instruction text in BLACK (was red)
         st.markdown('<p class="instruction-text">Enter the price per share at which you purchased the stock:</p>', unsafe_allow_html=True)
         purchase_price_per_share = st.number_input(
             "Purchase Price per Share (PKR)",
@@ -325,7 +569,7 @@ def main():
         
         st.markdown("---")
         
-        st.markdown('<p class="instruction-text">Enter the total amount you invested (number of shares × purchase price):</p>', unsafe_allow_html=True)
+        st.markdown('<p class="instruction-text">Enter the total amount you invested (number of shares x purchase price):</p>', unsafe_allow_html=True)
         total_purchase_price = st.number_input(
             "Total Purchase Price (PKR)",
             min_value=0.0,
@@ -348,7 +592,7 @@ def main():
         )
         
         st.markdown("---")
-        st.header("💰 Tax & Utilities")
+        st.header("Tax & Utilities")
         
         st.markdown('<p class="instruction-text">Enter the Capital Gains Tax percentage that will be deducted from your profit:</p>', unsafe_allow_html=True)
         tax_rate = st.number_input(
@@ -384,7 +628,7 @@ def main():
         
         st.markdown("---")
         
-        if st.button("🔍 Analyze Stock", use_container_width=True):
+        if st.button("Analyze Stock", use_container_width=True):
             with st.spinner("Fetching real-time data..."):
                 predictor.current_stock = stock_symbol
                 symbol = predictor.psx_stocks[stock_symbol]['symbol']
@@ -392,7 +636,7 @@ def main():
                 
                 if predictor.data:
                     st.session_state.analyzed = True
-                    st.success("✅ Data loaded successfully!")
+                    st.success("Data loaded successfully!")
                     st.rerun()
                 else:
                     st.error("Failed to load data. Please try another stock.")
@@ -460,8 +704,8 @@ def main():
                 price_gap_before_tax = required_price_before_tax - current_price
                 price_gap_after_tax = required_price_after_tax - current_price
                 
-                required_status_before = "✅ Achievable" if current_price >= required_price_before_tax else "❌ Not Yet"
-                required_status_after = "✅ Achievable" if current_price >= required_price_after_tax else "❌ Not Yet"
+                required_status_before = "Achievable" if current_price >= required_price_before_tax else "Not Yet"
+                required_status_after = "Achievable" if current_price >= required_price_after_tax else "Not Yet"
                 
                 # Check if profit target achieved
                 profit_target_achieved = profit_percent_before_tax >= predictor.required_profit_percent
@@ -483,50 +727,50 @@ def main():
             
             if predictor.required_profit_percent > 0:
                 if profit_target_achieved:
-                    recommendation = "✅ SELL - Target Profit Achieved!"
+                    recommendation = "SELL - Target Profit Achieved!"
                     recommendation_color = "success"
                     recommendation_reason = f"Your profit of {profit_percent_before_tax:.1f}% has met/exceeded your target of {predictor.required_profit_percent:.1f}%"
                 elif profit_percent_before_tax > 0:
                     remaining_percent = predictor.required_profit_percent - profit_percent_before_tax
-                    recommendation = "⚠️ HOLD - Profit Not Yet at Target"
+                    recommendation = "HOLD - Profit Not Yet at Target"
                     recommendation_color = "warning"
                     recommendation_reason = f"You have achieved {profit_percent_before_tax:.1f}% profit, need {remaining_percent:.1f}% more to reach target"
                 else:
-                    recommendation = "🔴 HOLD - Currently at Loss"
+                    recommendation = "HOLD - Currently at Loss"
                     recommendation_color = "error"
                     recommendation_reason = f"You are at a loss of {abs(profit_percent_before_tax):.1f}%. Wait for price to recover before considering sell"
             else:
                 if profit_percent_before_tax > 0:
-                    recommendation = "✅ PROFIT OPPORTUNITY - Consider Selling"
+                    recommendation = "PROFIT OPPORTUNITY - Consider Selling"
                     recommendation_color = "success"
                     recommendation_reason = f"You are currently at {profit_percent_before_tax:.1f}% profit"
                 else:
-                    recommendation = "📊 MONITOR - Currently at Loss"
+                    recommendation = "MONITOR - Currently at Loss"
                     recommendation_color = "info"
                     recommendation_reason = f"You are at a loss of {abs(profit_percent_before_tax):.1f}%. Monitor the stock for recovery"
             
             # Display comprehensive portfolio status
             st.info(f"""
-            **📈 PORTFOLIO STATUS**
+            PORTFOLIO STATUS
             
-            **Purchase Details:**
+            Purchase Details:
             - Purchase Price per Share: PKR {predictor.purchase_price_per_share:,.2f}
             - Total Investment: PKR {total_investment:,.2f}
             - Number of Shares: {shares:,.0f}
             
-            **Current Status (Before Tax):**
+            Current Status (Before Tax):
             - Current Price: PKR {current_price:,.2f}
             - Profit/Loss per Share: PKR {profit_per_share_before_tax:+.2f} ({profit_percent_before_tax:+.1f}%)
             - Total Profit/Loss: PKR {total_profit_before_tax:+,.2f}
             - Current Portfolio Value: PKR {current_value:,.2f}
             
-            **After Tax & Utilities ({predictor.tax_rate}% Tax + {predictor.utilities_rate}% Fees):**
+            After Tax & Utilities ({predictor.tax_rate}% Tax + {predictor.utilities_rate}% Fees):
             - Tax Amount: PKR {tax_amount:,.2f} per share
             - Utilities/Fees: PKR {utilities_amount:,.2f} per share
             - Net Profit per Share: PKR {profit_per_share_after_tax:+.2f} ({profit_percent_after_tax:+.1f}%)
             - Net Total Profit: PKR {total_profit_after_tax:+,.2f}
             
-            **Required Profit Analysis ({predictor.required_profit_percent:.1f}% target on total investment):**
+            Required Profit Analysis ({predictor.required_profit_percent:.1f}% target on total investment):
             - Required Profit Amount: PKR {required_profit_amount:,.2f}
             - Required Profit per Share: PKR {required_profit_per_share:,.2f}
             - Required Price (Before Tax): PKR {required_price_before_tax:,.2f} - {required_status_before}
@@ -538,25 +782,25 @@ def main():
             # Display recommendation prominently
             if recommendation_color == "success":
                 st.success(f"### {recommendation}")
-                st.success(f"**Recommendation:** {recommendation_reason}")
-                st.success(f"**If you sell NOW:** You will make {profit_percent_before_tax:.1f}% profit (PKR {total_profit_before_tax:+,.2f} before tax)")
+                st.success(f"Recommendation: {recommendation_reason}")
+                st.success(f"If you sell NOW: You will make {profit_percent_before_tax:.1f}% profit (PKR {total_profit_before_tax:+,.2f} before tax)")
             elif recommendation_color == "warning":
                 st.warning(f"### {recommendation}")
-                st.warning(f"**Recommendation:** {recommendation_reason}")
-                st.warning(f"**If you sell NOW:** You will make {profit_percent_before_tax:.1f}% profit (PKR {total_profit_before_tax:+,.2f} before tax)")
+                st.warning(f"Recommendation: {recommendation_reason}")
+                st.warning(f"If you sell NOW: You will make {profit_percent_before_tax:.1f}% profit (PKR {total_profit_before_tax:+,.2f} before tax)")
             elif recommendation_color == "error":
                 st.error(f"### {recommendation}")
-                st.error(f"**Recommendation:** {recommendation_reason}")
-                st.error(f"**If you sell NOW:** You will incur a loss of {abs(profit_percent_before_tax):.1f}% (PKR {total_profit_before_tax:+,.2f} before tax)")
+                st.error(f"Recommendation: {recommendation_reason}")
+                st.error(f"If you sell NOW: You will incur a loss of {abs(profit_percent_before_tax):.1f}% (PKR {total_profit_before_tax:+,.2f} before tax)")
             else:
                 st.info(f"### {recommendation}")
-                st.info(f"**Recommendation:** {recommendation_reason}")
-                st.info(f"**If you sell NOW:** {profit_percent_before_tax:+.1f}% return (PKR {total_profit_before_tax:+,.2f} before tax)")
+                st.info(f"Recommendation: {recommendation_reason}")
+                st.info(f"If you sell NOW: {profit_percent_before_tax:+.1f}% return (PKR {total_profit_before_tax:+,.2f} before tax)")
         
         st.markdown("---")
         
         # Tabs
-        tab1, tab2, tab3 = st.tabs(["📈 Price Chart", "📊 Technical Analysis", "🎯 Predictions"])
+        tab1, tab2, tab3, tab4 = st.tabs(["📈 Price Chart", "📊 Technical Analysis", "🎯 Predictions", "🔍 Advanced Signals"])
         
         with tab1:
             st.subheader(f"{predictor.current_stock} - Price Chart")
@@ -603,7 +847,7 @@ def main():
                 st.metric("Bollinger Upper", f"PKR {tech['Upper Band']:,.2f}")
                 st.metric("Bollinger Lower", f"PKR {tech['Lower Band']:,.2f}")
             
-            st.subheader("Historical Data")
+            st.subheader("Historical Data (Last 20 Days)")
             hist_df = pd.DataFrame({
                 'Date': predictor.data['dates'][-20:],
                 'Open': predictor.data['open'][-20:],
@@ -646,20 +890,226 @@ def main():
             
             expected_return = ((predictions[-1] - predictor.data['current_price']) / predictor.data['current_price']) * 100
             st.metric("Expected 5-Month Return", f"{expected_return:+.1f}%")
+        
+        with tab4:
+            st.subheader("Advanced Trend Analysis & Trading Signals")
+            
+            # Initialize analyzer
+            analyzer = AdvancedTrendAnalyzer(
+                predictor.data['prices'],
+                predictor.data['volumes'],
+                predictor.data['high'],
+                predictor.data['low']
+            )
+            
+            # Get technical indicators
+            tech = predictor.calculate_technical_indicators(predictor.data['prices'])
+            
+            # Generate signal
+            signal = analyzer.generate_signal(
+                predictor.data['current_price'],
+                tech['RSI'],
+                predictor.data['volumes']
+            )
+            
+            # Display signal prominently
+            if signal['action'] in ['strong_buy', 'buy', 'cautious_buy']:
+                st.success(f"SIGNAL: {signal['recommendation']}")
+                st.success(f"Confidence: {signal['confidence']}%")
+            elif signal['action'] in ['strong_sell', 'sell', 'cautious_sell']:
+                st.error(f"SIGNAL: {signal['recommendation']}")
+                st.error(f"Confidence: {signal['confidence']}%")
+            else:
+                st.warning(f"SIGNAL: {signal['recommendation']}")
+                st.warning(f"Confidence: {signal['confidence']}%")
+            
+            # Display all signals
+            st.markdown("Signal Details")
+            for sig in signal['signals']:
+                st.write(sig)
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                st.metric("Trend Analysis", signal['trend'])
+                if signal['support_levels']:
+                    st.write(f"Support Levels: PKR {', '.join([str(round(x,2)) for x in signal['support_levels']])}")
+                else:
+                    st.write("Support Levels: Not detected")
+                
+                # Check for trough
+                recent_lows = sorted(predictor.data['prices'][-10:])[:3]
+                is_at_trough = predictor.data['current_price'] <= max(recent_lows) * 1.02
+                if is_at_trough:
+                    st.info("Potential Trough Detected - Price near recent lows")
+            
+            with col2:
+                st.metric("Patterns Detected", len([p for p in signal['patterns'] if p != "No clear pattern detected"]))
+                if signal['resistance_levels']:
+                    st.write(f"Resistance Levels: PKR {', '.join([str(round(x,2)) for x in signal['resistance_levels']])}")
+                else:
+                    st.write("Resistance Levels: Not detected")
+            
+            # Display patterns
+            if signal['patterns'] and signal['patterns'][0] != "No clear pattern detected":
+                st.markdown("Chart Patterns Detected")
+                for pattern in signal['patterns']:
+                    if "Bullish" in pattern:
+                        st.success(f"{pattern}")
+                    elif "Bearish" in pattern:
+                        st.error(f"{pattern}")
+                    else:
+                        st.info(f"{pattern}")
+            
+            # CANDLESTICK CHART - Visible now
+            st.markdown("---")
+            st.subheader("Candlestick Chart with Moving Averages")
+            
+            # Create candlestick chart
+            candlestick_df = pd.DataFrame({
+                'Date': predictor.data['dates'],
+                'Open': predictor.data['open'],
+                'High': predictor.data['high'],
+                'Low': predictor.data['low'],
+                'Close': predictor.data['prices'],
+                'Volume': predictor.data['volumes']
+            })
+            
+            # Main Candlestick Chart
+            fig_candle = go.Figure()
+            
+            # Add candlestick trace
+            fig_candle.add_trace(go.Candlestick(
+                x=candlestick_df['Date'],
+                open=candlestick_df['Open'],
+                high=candlestick_df['High'],
+                low=candlestick_df['Low'],
+                close=candlestick_df['Close'],
+                name='Price',
+                increasing_line_color='#00ff00',
+                decreasing_line_color='#ff0000',
+                increasing_fillcolor='#00ff00',
+                decreasing_fillcolor='#ff0000'
+            ))
+            
+            # Add MA20
+            ma20_values = candlestick_df['Close'].rolling(window=20).mean()
+            fig_candle.add_trace(go.Scatter(
+                x=candlestick_df['Date'],
+                y=ma20_values,
+                mode='lines',
+                name='MA20',
+                line=dict(color='#FFD700', width=1.5)
+            ))
+            
+            # Add MA50
+            ma50_values = candlestick_df['Close'].rolling(window=50).mean()
+            fig_candle.add_trace(go.Scatter(
+                x=candlestick_df['Date'],
+                y=ma50_values,
+                mode='lines',
+                name='MA50',
+                line=dict(color='#FF6B6B', width=1.5)
+            ))
+            
+            # Update layout
+            fig_candle.update_layout(
+                title=f'{predictor.current_stock} - Candlestick Chart',
+                template='plotly_dark',
+                height=500,
+                xaxis_title='Date',
+                yaxis_title='Price (PKR)',
+                xaxis_rangeslider_visible=False
+            )
+            
+            st.plotly_chart(fig_candle, use_container_width=True)
+            
+            # Volume chart below candlestick
+            fig_volume = go.Figure(data=[
+                go.Bar(
+                    x=candlestick_df['Date'],
+                    y=candlestick_df['Volume'],
+                    name='Volume',
+                    marker_color='#667eea'
+                )
+            ])
+            
+            fig_volume.update_layout(
+                title='Trading Volume',
+                template='plotly_dark',
+                height=200,
+                xaxis_title='Date',
+                yaxis_title='Volume'
+            )
+            
+            st.plotly_chart(fig_volume, use_container_width=True)
+            
+            # Dynamic recommendation based on trough analysis
+            st.markdown("---")
+            st.subheader("Dynamic Entry/Exit Strategy")
+            
+            current_price = predictor.data['current_price']
+            recent_lows = sorted(predictor.data['prices'][-10:])[:3]
+            recent_highs = sorted(predictor.data['prices'][-10:])[-3:]
+            is_at_trough = current_price <= max(recent_lows) * 1.02
+            is_at_peak = current_price >= min(recent_highs) * 0.98
+            
+            if is_at_trough and signal['action'] in ['strong_buy', 'buy', 'cautious_buy']:
+                st.success("""
+                POTENTIAL BUY OPPORTUNITY DETECTED!
+                
+                The stock appears to be near recent lows (potential trough) with bullish signals.
+                Consider accumulating if fundamentals support the position.
+                """)
+            elif is_at_peak and signal['action'] in ['strong_sell', 'sell', 'cautious_sell']:
+                st.warning("""
+                SELL SIGNAL ACTIVE AT PEAK
+                
+                Technical indicators suggest further downside from current levels. 
+                Consider booking profits or setting tight stop-losses.
+                """)
+            elif signal['action'] in ['strong_sell', 'sell']:
+                st.warning("""
+                SELL SIGNAL ACTIVE
+                
+                Technical indicators suggest downward momentum. Consider reducing exposure 
+                and wait for support levels before re-entering.
+                """)
+            elif signal['action'] in ['strong_buy', 'buy']:
+                st.info("""
+                BULLISH SIGNAL
+                
+                Technical analysis shows strength. Consider buying on minor pullbacks 
+                rather than chasing at current levels.
+                """)
+            else:
+                st.info("""
+                NEUTRAL SIGNAL
+                
+                No clear entry/exit signals at this time. Wait for clearer technical patterns 
+                or better risk-reward setup.
+                """)
     
     else:
-        st.info("👈 **Welcome!** Select a stock from the sidebar and click 'Analyze Stock' to begin.")
+        st.info("👈 Welcome! Select a stock from the sidebar and click 'Analyze Stock' to begin.")
         
         st.markdown("""
         ### Features:
-        - 📈 **Real-time price charts** with historical data
-        - 📊 **Technical indicators** (RSI, Moving Averages, Bollinger Bands)
-        - 💰 **Portfolio tracker** to calculate profit/loss
-        - 🎯 **5-month price predictions** with confidence intervals
-        - 📱 **Professional interface** with dark theme
+        - Real-time price charts with historical data
+        - Technical indicators (RSI, Moving Averages, Bollinger Bands)
+        - Portfolio tracker to calculate profit/loss
+        - 5-month price predictions with confidence intervals
+        - Advanced trend analysis with buy/sell signals
+        - Support/Resistance detection
+        - Chart pattern recognition
+        - Live Candlestick charts with moving averages
         
         ### Available Sectors:
-        - Banking, Cement, Fertilizer, Oil & Gas, Technology, Power
+        - Banking
+        - Cement
+        - Fertilizer
+        - Oil & Gas
+        - Technology
+        - Power
         """)
 
 if __name__ == "__main__":
