@@ -397,7 +397,7 @@ SOFTWARE.
 
 ### Project Links
 - Repository: `https://github.com/YOUR_USERNAME/psx-stock-predictor`
-- Live Demo: Coming soon
+- Live Demo: https://stock-prediction-r5fwsua8s6pwfhfwwigems.streamlit.app/
 
 ## 🙏 Acknowledgments
 
