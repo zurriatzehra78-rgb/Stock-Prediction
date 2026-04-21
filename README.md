@@ -1,4 +1,3 @@
-## HERE IS THE COMPLETE README - COPY EVERYTHING BELOW THIS LINE:
 
 ```markdown
 # 📈 PSX Stock Predictor - Professional Edition
