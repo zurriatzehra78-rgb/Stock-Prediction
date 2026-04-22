@@ -105,19 +105,23 @@ This application solves these problems by providing a unified platform with:
 
 ## 📸 Screenshots
 
-*(Place your screenshots in a `screenshots/` folder)*
-
 | Dashboard | Candlestick Chart |
 |-----------|-------------------|
-| ![Dashboard](screenshots/dashboard.png) | ![Candlestick](screenshots/candlestick.png) |
+| ![Dashboard](<img width="1356" height="584" alt="01" src="https://github.com/user-attachments/assets/d2f5f2c4-206a-4f92-b61c-33e53e340c68" />
+) | ![Candlestick](<img width="1366" height="586" alt="09" src="https://github.com/user-attachments/assets/7e4a7e1e-043d-4338-b519-6d7715f32ef6" />
+) |
 
 | Portfolio Analysis | Technical Indicators |
 |-------------------|---------------------|
-| ![Portfolio](screenshots/portfolio.png) | ![Indicators](screenshots/indicators.png) |
+| ![Portfolio](<img width="1366" height="586" alt="02" src="https://github.com/user-attachments/assets/c4c146eb-846e-46c8-aedf-b348ab6c1174" />
+) | ![Indicators](<img width="1366" height="586" alt="06" src="https://github.com/user-attachments/assets/dcb26ebf-201c-484d-a24f-aa54480a8c20" />
+) |
 
 | Price Predictions | Trading Signals |
 |------------------|-----------------|
-| ![Predictions](screenshots/predictions.png) | ![Signals](screenshots/signals.png) |
+| ![Predictions](<img width="1366" height="582" alt="03" src="https://github.com/user-attachments/assets/d58ac81b-a238-40e9-9b38-695e81e8d529" />
+) | ![Signals](<img width="1366" height="586" alt="04" src="https://github.com/user-attachments/assets/e619e1b6-36c8-44ca-a459-22cf40e02fbe" />
+) |
 
 ---
 
@@ -367,7 +371,7 @@ logging.basicConfig(level=logging.DEBUG)
 
 MIT License
 
-Copyright (c) 2024 [Your Name]
+Copyright (c) 2024 [Zurriat Zehra]
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
