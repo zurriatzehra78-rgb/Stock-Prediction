@@ -20,6 +20,7 @@ st.set_page_config(
 )
 
 # Custom CSS
+# Custom CSS
 st.markdown("""
 <style>
     .stApp {
@@ -42,32 +43,37 @@ st.markdown("""
         background-color: rgba(0,0,0,0.5) !important;
     }
     
-    /* SIDEBAR - Make text BLACK */
+    /* SIDEBAR - Make text WHITE */
     .css-1d391kg, .css-1d391kg .stMarkdown, .css-1d391kg label, .css-1d391kg p, 
     .css-1d391kg .stText, .css-1d391kg .stNumberInput, .css-1d391kg .stSelectbox,
     .css-1d391kg .stMultiSelect, .css-1d391kg h1, .css-1d391kg h2, .css-1d391kg h3,
     .css-1d391kg .stAlert, .css-1d391kg .stInfo, .css-1d391kg .stWarning {
-        color: #1a1a1a !important;
+        color: white !important;
     }
     
     /* Sidebar header text */
     .css-1d391kg .stHeader, .css-1d391kg header {
-        color: #1a1a1a !important;
+        color: white !important;
     }
     
     /* Sidebar metric text */
     .css-1d391kg .stMetric label, .css-1d391kg .stMetric p {
-        color: #1a1a1a !important;
+        color: white !important;
     }
     
-    /* Sidebar number input values */
+    /* Sidebar number input values - make text dark for readability */
     .css-1d391kg .stNumberInput input, .css-1d391kg .stTextInput input {
         color: #1a1a1a !important;
         background-color: white !important;
     }
     
-    /* Sidebar select box */
+    /* Sidebar select box - keep dropdown text dark for readability */
     .css-1d391kg .stSelectbox div, .css-1d391kg .stSelectbox label {
+        color: white !important;
+    }
+    
+    /* Sidebar select box input text */
+    .css-1d391kg .stSelectbox input {
         color: #1a1a1a !important;
     }
     
@@ -108,19 +114,18 @@ st.markdown("""
     
     /* Sidebar divider lines */
     hr {
-        border-color: rgba(0,0,0,0.2) !important;
+        border-color: rgba(255,255,255,0.2) !important;
     }
     
-    /* Instruction text */
+    /* Instruction text - now white */
     .instruction-text {
-        color: #000000 !important;
+        color: white !important;
         font-weight: bold !important;
         font-size: 14px !important;
         margin-bottom: 5px !important;
     }
 </style>
 """, unsafe_allow_html=True)
-
 class AdvancedTrendAnalyzer:
     """Advanced trend analysis for buy/sell signals"""
     
