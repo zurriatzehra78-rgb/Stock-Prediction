@@ -994,7 +994,7 @@ class PSXStockPredictor:
             cagr = ((predictions[-1] / predictor.data['current_price']) ** (1/3) - 1) * 100
             st.metric("CAGR (Compound Annual Growth Rate)", f"{cagr:+.1f}%")
         with tab4:
-            st.subheader("Advanced Trend Analysis & Trading Signals")
+                st.subheader("Advanced Trend Analysis & Trading Signals")
             
             # Initialize analyzer
             analyzer = AdvancedTrendAnalyzer(
