@@ -20,7 +20,6 @@ st.set_page_config(
 )
 
 # Custom CSS
-# Custom CSS
 st.markdown("""
 <style>
     .stApp {
@@ -126,6 +125,7 @@ st.markdown("""
     }
 </style>
 """, unsafe_allow_html=True)
+
 class AdvancedTrendAnalyzer:
     """Advanced trend analysis for buy/sell signals"""
     
@@ -373,20 +373,68 @@ class AdvancedTrendAnalyzer:
 
 class PSXStockPredictor:
     def __init__(self):
-        # PSX Stocks with verified working symbols
+        # PSX Stocks with expanded list
         self.psx_stocks = {
+            # Banking Sector - Original
             'HBL': {'symbol': 'HBL', 'name': 'Habib Bank Limited', 'sector': 'Banking', 'currency': 'PKR'},
             'UBL': {'symbol': 'UBL', 'name': 'United Bank Limited', 'sector': 'Banking', 'currency': 'PKR'},
             'MCB': {'symbol': 'MCB', 'name': 'MCB Bank Limited', 'sector': 'Banking', 'currency': 'PKR'},
             'BAFL': {'symbol': 'BAFL', 'name': 'Bank Alfalah Limited', 'sector': 'Banking', 'currency': 'PKR'},
+            # Banking Sector - New Additions
+            'MEBL': {'symbol': 'MEBL', 'name': 'Meezan Bank Limited', 'sector': 'Banking', 'currency': 'PKR'},
+            'BOP': {'symbol': 'BOP', 'name': 'Bank of Punjab', 'sector': 'Banking', 'currency': 'PKR'},
+            'KHYB': {'symbol': 'KHYB', 'name': 'Khyber Bank', 'sector': 'Banking', 'currency': 'PKR'},
+            'UBL': {'symbol': 'UBL', 'name': 'United Bank Limited', 'sector': 'Banking', 'currency': 'PKR'},  # Already exist
+            'SNBL': {'symbol': 'SNBL', 'name': 'Sindh Bank Limited', 'sector': 'Banking', 'currency': 'PKR'},
+            'NBP': {'symbol': 'NBP', 'name': 'National Bank of Pakistan', 'sector': 'Banking', 'currency': 'PKR'},
+            'SCBPL': {'symbol': 'SCBPL', 'name': 'Standard Chartered Bank Pakistan', 'sector': 'Banking', 'currency': 'PKR'},
+            
+            # Cement Sector - Original
             'LUCK': {'symbol': 'LUCK', 'name': 'Lucky Cement Limited', 'sector': 'Cement', 'currency': 'PKR'},
             'DGKC': {'symbol': 'DGKC', 'name': 'Dera Ghazi Khan Cement', 'sector': 'Cement', 'currency': 'PKR'},
+            # Cement Sector - New Additions
+            'BWCL': {'symbol': 'BWCL', 'name': 'Bestway Cement Limited', 'sector': 'Cement', 'currency': 'PKR'},
+            'MLCF': {'symbol': 'MLCF', 'name': 'Maple Leaf Cement Factory', 'sector': 'Cement', 'currency': 'PKR'},
+            'ACPL': {'symbol': 'ACPL', 'name': 'Attock Cement Pakistan Limited', 'sector': 'Cement', 'currency': 'PKR'},
+            'KOHC': {'symbol': 'KOHC', 'name': 'Kohat Cement Company Limited', 'sector': 'Cement', 'currency': 'PKR'},
+            'POWER': {'symbol': 'POWER', 'name': 'Power Cement Limited', 'sector': 'Cement', 'currency': 'PKR'},
+            'THCCL': {'symbol': 'THCCL', 'name': 'Thatta Cement Company Limited', 'sector': 'Cement', 'currency': 'PKR'},
+            
+            # Fertilizer Sector - Original
             'FFC': {'symbol': 'FFC', 'name': 'Fauji Fertilizer Company', 'sector': 'Fertilizer', 'currency': 'PKR'},
             'ENGRO': {'symbol': 'ENGRO', 'name': 'Engro Corporation', 'sector': 'Fertilizer', 'currency': 'PKR'},
+            
+            # Oil & Gas Sector - Original
             'PPL': {'symbol': 'PPL', 'name': 'Pakistan Petroleum Limited', 'sector': 'Oil & Gas', 'currency': 'PKR'},
             'OGDC': {'symbol': 'OGDC', 'name': 'Oil & Gas Development Company', 'sector': 'Oil & Gas', 'currency': 'PKR'},
+            # Oil & Gas Sector - New Additions
+            'MARI': {'symbol': 'MARI', 'name': 'Mari Petroleum Company Limited', 'sector': 'Oil & Gas', 'currency': 'PKR'},
+            'POL': {'symbol': 'POL', 'name': 'Pakistan Oilfields Limited', 'sector': 'Oil & Gas', 'currency': 'PKR'},
+            'PSO': {'symbol': 'PSO', 'name': 'Pakistan State Oil', 'sector': 'Oil & Gas', 'currency': 'PKR'},
+            'APL': {'symbol': 'APL', 'name': 'Attock Petroleum Limited', 'sector': 'Oil & Gas', 'currency': 'PKR'},
+            'SNGP': {'symbol': 'SNGP', 'name': 'Sui Northern Gas Pipelines Limited', 'sector': 'Oil & Gas', 'currency': 'PKR'},
+            'SSGC': {'symbol': 'SSGC', 'name': 'Sui Southern Gas Company', 'sector': 'Oil & Gas', 'currency': 'PKR'},
+            'HASCOL': {'symbol': 'HASCOL', 'name': 'Hascol Petroleum Limited', 'sector': 'Oil & Gas', 'currency': 'PKR'},
+            'CNERGY': {'symbol': 'CNERGY', 'name': 'Cnergyico PK Limited', 'sector': 'Oil & Gas', 'currency': 'PKR'},
+            
+            # Technology Sector - Original
             'SYS': {'symbol': 'SYS', 'name': 'Systems Limited', 'sector': 'Technology', 'currency': 'PKR'},
+            
+            # Power Sector - Original
             'HUBC': {'symbol': 'HUBC', 'name': 'Hub Power Company', 'sector': 'Power', 'currency': 'PKR'},
+            # Power Sector - New Additions
+            'KAPCO': {'symbol': 'KAPCO', 'name': 'Kot Addu Power Company', 'sector': 'Power', 'currency': 'PKR'},
+            'KEL': {'symbol': 'KEL', 'name': 'K-Electric Limited', 'sector': 'Power', 'currency': 'PKR'},
+            'NCPL': {'symbol': 'NCPL', 'name': 'Nishat Chunian Power Limited', 'sector': 'Power', 'currency': 'PKR'},
+            'LPL': {'symbol': 'LPL', 'name': 'Lalpir Power Limited', 'sector': 'Power', 'currency': 'PKR'},
+            'ALTN': {'symbol': 'ALTN', 'name': 'Altern Energy Limited', 'sector': 'Power', 'currency': 'PKR'},
+            'PKGP': {'symbol': 'PKGP', 'name': 'Pakgen Power Limited', 'sector': 'Power', 'currency': 'PKR'},
+            'SPWL': {'symbol': 'SPWL', 'name': 'Sitara Peroxide Power', 'sector': 'Power', 'currency': 'PKR'},
+            
+            # Additional Sectors
+            'PTC': {'symbol': 'PTC', 'name': 'Pakistan Telecommunication Company Ltd', 'sector': 'Telecom', 'currency': 'PKR'},
+            'EFERT': {'symbol': 'EFERT', 'name': 'Energo Fertilizer', 'sector': 'Fertilizer', 'currency': 'PKR'},
+            'FATIMA': {'symbol': 'FATIMA', 'name': 'Fatima Fertilizer', 'sector': 'Fertilizer', 'currency': 'PKR'},
         }
         
         self.current_stock = None
@@ -1108,13 +1156,15 @@ def main():
         - Chart pattern recognition
         - Live Candlestick charts with moving averages
         
-        ### Available Sectors:
-        - Banking
-        - Cement
-        - Fertilizer
-        - Oil & Gas
-        - Technology
-        - Power
+        ### Available Stocks (By Sector):
+        
+        **Banking**
+        **Cement**
+        **Oil & Gas**
+        **Power**
+        **Fertilizer**
+        **Technology**
+        **Telecom**
         """)
 
 if __name__ == "__main__":
