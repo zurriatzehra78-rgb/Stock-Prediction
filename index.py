@@ -548,8 +548,10 @@ class PSXStockPredictor:
         if len(prices) < 2:
             return 0
         return ((prices[-1] - prices[0]) / prices[0]) * 100
-
-   def predict_future(self, months=36):
+   
+    
+    def predict_future(self, months=36):
+        """Predict future prices for up to 3 years (36 months)"""
         prices = self.data['prices']
         n = len(prices)
         x = list(range(n))
@@ -564,6 +566,7 @@ class PSXStockPredictor:
         slope = numerator / denominator if denominator != 0 else 0
         intercept = mean_y - slope * mean_x
         
+        # Predict for up to 36 months (3 years)
         predictions = [round(slope * i + intercept, 2) for i in range(n, n + months)]
         
         residuals = [y[i] - (slope * x[i] + intercept) for i in range(n)]
@@ -573,10 +576,11 @@ class PSXStockPredictor:
         upper_bounds = [round(p + 1.96 * std_dev, 2) for p in predictions]
         
         return predictions, lower_bounds, upper_bounds
-def main():
-    st.markdown("<h1>PSX Stock Predictor</h1>", unsafe_allow_html=True)
-    st.markdown("<p style='text-align: center; color: white;'>Real-Time Pakistan Stock Exchange Analysis</p>", unsafe_allow_html=True)
-    st.markdown("---")
+   
+    def main():
+        st.markdown("<h1>PSX Stock Predictor</h1>", unsafe_allow_html=True)
+        st.markdown("<p style='text-align: center; color: white;'>Real-Time Pakistan Stock Exchange Analysis</p>", unsafe_allow_html=True)
+        st.markdown("---")
 
     if 'predictor' not in st.session_state:
         st.session_state.predictor = PSXStockPredictor()
