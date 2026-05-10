@@ -1,7 +1,581 @@
-# ... (keep all your imports, CSS, AdvancedTrendAnalyzer class, and PSXStockPredictor class as they are)
+import streamlit as st
+import pandas as pd
+import numpy as np
+import math
+import plotly.graph_objects as go
+import plotly.express as px
+from plotly.subplots import make_subplots
+from datetime import datetime, timedelta
+import yfinance as yf
+import requests
+import json
+import warnings
+warnings.filterwarnings('ignore')
 
-# THEN add the main function OUTSIDE the class:
+# Configure Streamlit page
+st.set_page_config(
+    page_title="PSX Stock Predictor - Professional Edition",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
 
+# Custom CSS
+st.markdown("""
+<style>
+    .stApp {
+        background: linear-gradient(135deg, #0a0a0a 0%, #1a1a1a 100%);
+    }
+    
+    /* Make ALL main page text white */
+    .stMarkdown, .stText, .stNumberInput, .stSelectbox, .stMultiSelect, label, .stMetric label, .stMetric p {
+        color: white !important;
+    }
+    
+    /* Make metric values white */
+    .stMetric .css-1xarl3l, .stMetric .css-1wivap2, .stMetric div {
+        color: white !important;
+    }
+    
+    /* Make dataframe text white */
+    .dataframe, .dataframe td, .dataframe th {
+        color: white !important;
+        background-color: rgba(0,0,0,0.5) !important;
+    }
+    
+    /* SIDEBAR - Make text WHITE */
+    .css-1d391kg, .css-1d391kg .stMarkdown, .css-1d391kg label, .css-1d391kg p, 
+    .css-1d391kg .stText, .css-1d391kg .stNumberInput, .css-1d391kg .stSelectbox,
+    .css-1d391kg .stMultiSelect, .css-1d391kg h1, .css-1d391kg h2, .css-1d391kg h3,
+    .css-1d391kg .stAlert, .css-1d391kg .stInfo, .css-1d391kg .stWarning {
+        color: white !important;
+    }
+    
+    /* Sidebar header text */
+    .css-1d391kg .stHeader, .css-1d391kg header {
+        color: white !important;
+    }
+    
+    /* Sidebar metric text */
+    .css-1d391kg .stMetric label, .css-1d391kg .stMetric p {
+        color: white !important;
+    }
+    
+    /* Sidebar number input values - make text dark for readability */
+    .css-1d391kg .stNumberInput input, .css-1d391kg .stTextInput input {
+        color: #1a1a1a !important;
+        background-color: white !important;
+    }
+    
+    /* Sidebar select box - keep dropdown text dark for readability */
+    .css-1d391kg .stSelectbox div, .css-1d391kg .stSelectbox label {
+        color: white !important;
+    }
+    
+    /* Sidebar select box input text */
+    .css-1d391kg .stSelectbox input {
+        color: #1a1a1a !important;
+    }
+    
+    /* Keep PSX Stock Predictor title with gradient */
+    h1 {
+        background: linear-gradient(135deg, #FFD700, #FFA500);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        text-align: center;
+    }
+    
+    /* Button styling */
+    .stButton > button {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border: none;
+        border-radius: 10px;
+        padding: 12px 24px;
+        font-weight: 600;
+        width: 100%;
+    }
+    
+    /* Tab text */
+    .stTabs [data-baseweb="tab"] {
+        color: white !important;
+    }
+    
+    /* Main content input text */
+    .stTextInput input, .stNumberInput input {
+        color: white !important;
+        background-color: rgba(0,0,0,0.5) !important;
+    }
+    
+    /* Caption text */
+    .stCaption, caption {
+        color: rgba(255,255,255,0.7) !important;
+    }
+    
+    /* Sidebar divider lines */
+    hr {
+        border-color: rgba(255,255,255,0.2) !important;
+    }
+    
+    /* Instruction text - now white */
+    .instruction-text {
+        color: white !important;
+        font-weight: bold !important;
+        font-size: 14px !important;
+        margin-bottom: 5px !important;
+    }
+</style>
+""", unsafe_allow_html=True)
+
+class AdvancedTrendAnalyzer:
+    """Advanced trend analysis for buy/sell signals"""
+    
+    def __init__(self, prices, volumes, highs, lows):
+        self.prices = prices
+        self.volumes = volumes
+        self.highs = highs
+        self.lows = lows
+        self.n = len(prices)
+    
+    def find_support_resistance(self, window=5):
+        """Find support and resistance levels"""
+        supports = []
+        resistances = []
+        
+        for i in range(window, self.n - window):
+            # Check for support (local minimum)
+            if all(self.prices[i] <= self.prices[i - j] for j in range(1, window + 1)) and \
+               all(self.prices[i] <= self.prices[i + j] for j in range(1, window + 1)):
+                supports.append(self.prices[i])
+            
+            # Check for resistance (local maximum)
+            if all(self.prices[i] >= self.prices[i - j] for j in range(1, window + 1)) and \
+               all(self.prices[i] >= self.prices[i + j] for j in range(1, window + 1)):
+                resistances.append(self.prices[i])
+        
+        # Get significant levels (clustered)
+        support_levels = self._cluster_levels(supports)
+        resistance_levels = self._cluster_levels(resistances)
+        
+        return support_levels[-3:] if support_levels else [], resistance_levels[-3:] if resistance_levels else []
+    
+    def _cluster_levels(self, levels, tolerance=0.02):
+        """Cluster nearby price levels"""
+        if not levels:
+            return []
+        
+        levels.sort()
+        clustered = []
+        current_cluster = [levels[0]]
+        
+        for level in levels[1:]:
+            if level / current_cluster[-1] - 1 < tolerance:
+                current_cluster.append(level)
+            else:
+                clustered.append(sum(current_cluster) / len(current_cluster))
+                current_cluster = [level]
+        
+        if current_cluster:
+            clustered.append(sum(current_cluster) / len(current_cluster))
+        
+        return clustered
+    
+    def detect_trend_strength(self):
+        """Detect trend direction and strength"""
+        if self.n < 14:
+            return "Insufficient data", 0
+        
+        # Calculate directional movement
+        plus_dm = []
+        minus_dm = []
+        tr = []
+        
+        for i in range(1, self.n):
+            high_diff = self.highs[i] - self.highs[i-1]
+            low_diff = self.lows[i-1] - self.lows[i]
+            
+            plus_dm.append(max(high_diff, 0) if high_diff > low_diff else 0)
+            minus_dm.append(max(low_diff, 0) if low_diff > high_diff else 0)
+            
+            # True Range
+            hl = self.highs[i] - self.lows[i]
+            hc = abs(self.highs[i] - self.prices[i-1])
+            lc = abs(self.lows[i] - self.prices[i-1])
+            tr.append(max(hl, hc, lc))
+        
+        # Smooth with 14-period EMA
+        period = min(14, len(plus_dm))
+        atr = sum(tr[-period:]) / period
+        
+        if atr == 0:
+            return "Sideways", 0
+        
+        plus_di = 100 * (sum(plus_dm[-period:]) / period) / atr if atr > 0 else 0
+        minus_di = 100 * (sum(minus_dm[-period:]) / period) / atr if atr > 0 else 0
+        
+        dx = 100 * abs(plus_di - minus_di) / (plus_di + minus_di) if (plus_di + minus_di) > 0 else 0
+        
+        if plus_di > minus_di:
+            trend = "Uptrend"
+            strength = "Strong" if dx > 25 else "Moderate" if dx > 20 else "Weak"
+        elif minus_di > plus_di:
+            trend = "Downtrend"
+            strength = "Strong" if dx > 25 else "Moderate" if dx > 20 else "Weak"
+        else:
+            trend = "Sideways"
+            strength = "Neutral"
+        
+        return f"{trend} ({strength})", dx
+    
+    def identify_chart_patterns(self):
+        """Identify common chart patterns"""
+        patterns = []
+        
+        # Check for double bottom (W pattern)
+        if self.n >= 20:
+            recent_prices = self.prices[-20:]
+            min1_idx = recent_prices.index(min(recent_prices[:10]))
+            min2_idx = recent_prices.index(min(recent_prices[10:]), 10) if len(recent_prices[10:]) > 0 else -1
+            
+            if min1_idx >= 0 and min2_idx > min1_idx:
+                # Check if bottoms are at similar levels
+                if abs(recent_prices[min1_idx] - recent_prices[min2_idx]) / recent_prices[min1_idx] < 0.03:
+                    # Check for higher low between bottoms
+                    between_min = recent_prices[min1_idx+1:min2_idx]
+                    if between_min and max(between_min) > recent_prices[min1_idx]:
+                        patterns.append("Double Bottom (Bullish Reversal)")
+        
+        # Check for head and shoulders
+        if self.n >= 30:
+            recent_prices = self.prices[-30:]
+            peaks = []
+            for i in range(5, len(recent_prices) - 5):
+                if recent_prices[i] > recent_prices[i-1] and recent_prices[i] > recent_prices[i+1]:
+                    peaks.append((i, recent_prices[i]))
+            
+            if len(peaks) >= 3:
+                left_shoulder = peaks[0]
+                head = max(peaks[1:-1], key=lambda x: x[1]) if len(peaks) > 2 else None
+                right_shoulder = peaks[-1]
+                
+                if head and head[1] > left_shoulder[1] and head[1] > right_shoulder[1]:
+                    patterns.append("Head & Shoulders (Bearish Reversal)")
+        
+        return patterns if patterns else ["No clear pattern detected"]
+    
+    def generate_signal(self, current_price, rsi, volume_profile=None):
+        """Generate buy/sell signal based on multiple factors"""
+        signals = []
+        confidence = 0
+        
+        # RSI signals
+        if rsi < 30:
+            signals.append("Oversold - Potential BUY opportunity")
+            confidence += 30
+        elif rsi > 70:
+            signals.append("Overbought - Potential SELL opportunity")
+            confidence += 30
+        else:
+            signals.append(f"RSI at {rsi:.1f} - Neutral zone")
+        
+        # Support/Resistance signals
+        supports, resistances = self.find_support_resistance()
+        
+        if supports and current_price <= supports[-1] * 1.02:
+            signals.append(f"Near support at PKR {supports[-1]:.2f} - Watch for bounce")
+            confidence += 25
+        
+        if resistances and current_price >= resistances[-1] * 0.98:
+            signals.append(f"Near resistance at PKR {resistances[-1]:.2f} - Watch for rejection")
+            confidence += 25
+        
+        # Trend signals
+        trend, strength_val = self.detect_trend_strength()
+        if "Uptrend" in trend and strength_val > 25:
+            signals.append(f"Strong {trend} - Consider holding/accumulating on dips")
+            confidence += 20
+        elif "Downtrend" in trend and strength_val > 25:
+            signals.append(f"Strong {trend} - Consider reducing exposure")
+            confidence += 20
+        elif "Uptrend" in trend:
+            signals.append(f"{trend} - Positive momentum")
+            confidence += 10
+        elif "Downtrend" in trend:
+            signals.append(f"{trend} - Negative momentum")
+            confidence += 10
+        
+        # Pattern signals
+        patterns = self.identify_chart_patterns()
+        for pattern in patterns:
+            if "Bullish" in pattern:
+                signals.append(f"{pattern}")
+                confidence += 15
+            elif "Bearish" in pattern:
+                signals.append(f"{pattern}")
+                confidence += 15
+            elif pattern != "No clear pattern detected":
+                signals.append(f"{pattern}")
+        
+        # Volume analysis (if available)
+        if volume_profile and len(volume_profile) >= 20:
+            avg_volume = sum(volume_profile[-20:]) / 20
+            recent_volume = volume_profile[-1]
+            volume_ratio = recent_volume / avg_volume if avg_volume > 0 else 1
+            
+            if volume_ratio > 1.5:
+                if "BUY" in str(signals).upper():
+                    signals.append(f"High volume ({volume_ratio:.1f}x avg) confirming bullish move")
+                elif "SELL" in str(signals).upper():
+                    signals.append(f"High volume ({volume_ratio:.1f}x avg) confirming bearish move")
+                else:
+                    signals.append(f"Unusual volume ({volume_ratio:.1f}x avg) - Watch for breakout")
+                confidence += 15
+            elif volume_ratio < 0.5:
+                signals.append(f"Low volume ({volume_ratio:.1f}x avg) - Possible consolidation")
+        
+        # Final recommendation
+        if confidence >= 55:
+            if "BUY" in str(signals).upper():
+                recommendation = "STRONG BUY / ACCUMULATE"
+                action = "strong_buy"
+            elif "SELL" in str(signals).upper():
+                recommendation = "STRONG SELL / REDUCE"
+                action = "strong_sell"
+            else:
+                recommendation = "BUY ON DIPS"
+                action = "buy"
+        elif confidence >= 35:
+            if "BUY" in str(signals).upper():
+                recommendation = "CAUTIOUS BUY"
+                action = "cautious_buy"
+            elif "SELL" in str(signals).upper():
+                recommendation = "CAUTIOUS SELL"
+                action = "cautious_sell"
+            else:
+                recommendation = "HOLD / MONITOR"
+                action = "hold"
+        elif confidence >= 20:
+            recommendation = "NEUTRAL - Wait for confirmation"
+            action = "neutral"
+        else:
+            recommendation = "NO CLEAR SIGNAL - Exercise patience"
+            action = "wait"
+        
+        return {
+            'recommendation': recommendation,
+            'action': action,
+            'confidence': confidence,
+            'signals': signals,
+            'support_levels': supports[-2:] if supports else [],
+            'resistance_levels': resistances[-2:] if resistances else [],
+            'trend': trend,
+            'patterns': patterns
+        }
+
+class PSXStockPredictor:
+    def __init__(self):
+        # PSX Stocks with expanded list
+        self.psx_stocks = {
+            # Banking Sector - Original
+            'HBL': {'symbol': 'HBL', 'name': 'Habib Bank Limited', 'sector': 'Banking', 'currency': 'PKR'},
+            'UBL': {'symbol': 'UBL', 'name': 'United Bank Limited', 'sector': 'Banking', 'currency': 'PKR'},
+            'MCB': {'symbol': 'MCB', 'name': 'MCB Bank Limited', 'sector': 'Banking', 'currency': 'PKR'},
+            'BAFL': {'symbol': 'BAFL', 'name': 'Bank Alfalah Limited', 'sector': 'Banking', 'currency': 'PKR'},
+            # Banking Sector - New Additions
+            'MEBL': {'symbol': 'MEBL', 'name': 'Meezan Bank Limited', 'sector': 'Banking', 'currency': 'PKR'},
+            'BOP': {'symbol': 'BOP', 'name': 'Bank of Punjab', 'sector': 'Banking', 'currency': 'PKR'},
+            'KHYB': {'symbol': 'KHYB', 'name': 'Khyber Bank', 'sector': 'Banking', 'currency': 'PKR'},
+            'SNBL': {'symbol': 'SNBL', 'name': 'Sindh Bank Limited', 'sector': 'Banking', 'currency': 'PKR'},
+            'NBP': {'symbol': 'NBP', 'name': 'National Bank of Pakistan', 'sector': 'Banking', 'currency': 'PKR'},
+            'SCBPL': {'symbol': 'SCBPL', 'name': 'Standard Chartered Bank Pakistan', 'sector': 'Banking', 'currency': 'PKR'},
+            
+            # Cement Sector - Original
+            'LUCK': {'symbol': 'LUCK', 'name': 'Lucky Cement Limited', 'sector': 'Cement', 'currency': 'PKR'},
+            'DGKC': {'symbol': 'DGKC', 'name': 'Dera Ghazi Khan Cement', 'sector': 'Cement', 'currency': 'PKR'},
+            # Cement Sector - New Additions
+            'BWCL': {'symbol': 'BWCL', 'name': 'Bestway Cement Limited', 'sector': 'Cement', 'currency': 'PKR'},
+            'MLCF': {'symbol': 'MLCF', 'name': 'Maple Leaf Cement Factory', 'sector': 'Cement', 'currency': 'PKR'},
+            'ACPL': {'symbol': 'ACPL', 'name': 'Attock Cement Pakistan Limited', 'sector': 'Cement', 'currency': 'PKR'},
+            'KOHC': {'symbol': 'KOHC', 'name': 'Kohat Cement Company Limited', 'sector': 'Cement', 'currency': 'PKR'},
+            'POWER': {'symbol': 'POWER', 'name': 'Power Cement Limited', 'sector': 'Cement', 'currency': 'PKR'},
+            'THCCL': {'symbol': 'THCCL', 'name': 'Thatta Cement Company Limited', 'sector': 'Cement', 'currency': 'PKR'},
+            
+            # Fertilizer Sector - Original
+            'FFC': {'symbol': 'FFC', 'name': 'Fauji Fertilizer Company', 'sector': 'Fertilizer', 'currency': 'PKR'},
+            'ENGRO': {'symbol': 'ENGRO', 'name': 'Engro Corporation', 'sector': 'Fertilizer', 'currency': 'PKR'},
+            'EFERT': {'symbol': 'EFERT', 'name': 'Energo Fertilizer', 'sector': 'Fertilizer', 'currency': 'PKR'},
+            'FATIMA': {'symbol': 'FATIMA', 'name': 'Fatima Fertilizer', 'sector': 'Fertilizer', 'currency': 'PKR'},
+            
+            # Oil & Gas Sector - Original
+            'PPL': {'symbol': 'PPL', 'name': 'Pakistan Petroleum Limited', 'sector': 'Oil & Gas', 'currency': 'PKR'},
+            'OGDC': {'symbol': 'OGDC', 'name': 'Oil & Gas Development Company', 'sector': 'Oil & Gas', 'currency': 'PKR'},
+            # Oil & Gas Sector - New Additions
+            'MARI': {'symbol': 'MARI', 'name': 'Mari Petroleum Company Limited', 'sector': 'Oil & Gas', 'currency': 'PKR'},
+            'POL': {'symbol': 'POL', 'name': 'Pakistan Oilfields Limited', 'sector': 'Oil & Gas', 'currency': 'PKR'},
+            'PSO': {'symbol': 'PSO', 'name': 'Pakistan State Oil', 'sector': 'Oil & Gas', 'currency': 'PKR'},
+            'APL': {'symbol': 'APL', 'name': 'Attock Petroleum Limited', 'sector': 'Oil & Gas', 'currency': 'PKR'},
+            'SNGP': {'symbol': 'SNGP', 'name': 'Sui Northern Gas Pipelines Limited', 'sector': 'Oil & Gas', 'currency': 'PKR'},
+            'SSGC': {'symbol': 'SSGC', 'name': 'Sui Southern Gas Company', 'sector': 'Oil & Gas', 'currency': 'PKR'},
+            'HASCOL': {'symbol': 'HASCOL', 'name': 'Hascol Petroleum Limited', 'sector': 'Oil & Gas', 'currency': 'PKR'},
+            'CNERGY': {'symbol': 'CNERGY', 'name': 'Cnergyico PK Limited', 'sector': 'Oil & Gas', 'currency': 'PKR'},
+            
+            # Technology Sector - Original
+            'SYS': {'symbol': 'SYS', 'name': 'Systems Limited', 'sector': 'Technology', 'currency': 'PKR'},
+            
+            # Power Sector - Original
+            'HUBC': {'symbol': 'HUBC', 'name': 'Hub Power Company', 'sector': 'Power', 'currency': 'PKR'},
+            # Power Sector - New Additions
+            'KAPCO': {'symbol': 'KAPCO', 'name': 'Kot Addu Power Company', 'sector': 'Power', 'currency': 'PKR'},
+            'KEL': {'symbol': 'KEL', 'name': 'K-Electric Limited', 'sector': 'Power', 'currency': 'PKR'},
+            'NCPL': {'symbol': 'NCPL', 'name': 'Nishat Chunian Power Limited', 'sector': 'Power', 'currency': 'PKR'},
+            'LPL': {'symbol': 'LPL', 'name': 'Lalpir Power Limited', 'sector': 'Power', 'currency': 'PKR'},
+            'ALTN': {'symbol': 'ALTN', 'name': 'Altern Energy Limited', 'sector': 'Power', 'currency': 'PKR'},
+            'PKGP': {'symbol': 'PKGP', 'name': 'Pakgen Power Limited', 'sector': 'Power', 'currency': 'PKR'},
+            'SPWL': {'symbol': 'SPWL', 'name': 'Sitara Peroxide Power', 'sector': 'Power', 'currency': 'PKR'},
+            
+            # Additional Sectors
+            'PTC': {'symbol': 'PTC', 'name': 'Pakistan Telecommunication Company Ltd', 'sector': 'Telecom', 'currency': 'PKR'},
+        }
+        
+        self.current_stock = None
+        self.data = None
+        self.purchase_price_per_share = None
+        self.total_purchase_price = None
+        self.required_profit_percent = None
+        self.tax_rate = None
+        self.utilities_rate = None
+
+    @st.cache_data(ttl=300)
+    def fetch_stock_data(_self, symbol, period='6mo'):
+        symbols_to_try = [f"{symbol}.PK", f"{symbol}.PSX", symbol, f"{symbol}.KA", f"{symbol}-PK"]
+        
+        for try_symbol in symbols_to_try:
+            try:
+                ticker = yf.Ticker(try_symbol)
+                hist = ticker.history(period=period, interval='1d')
+                
+                if not hist.empty and len(hist) > 5:
+                    current_price = hist['Close'].iloc[-1]
+                    info = ticker.info
+                    returns = hist['Close'].pct_change().dropna()
+                    volatility = returns.std() * np.sqrt(252)
+                    
+                    data = {
+                        'dates': hist.index.strftime('%Y-%m-%d').tolist(),
+                        'prices': hist['Close'].round(2).tolist(),
+                        'volumes': hist['Volume'].tolist(),
+                        'high': hist['High'].round(2).tolist(),
+                        'low': hist['Low'].round(2).tolist(),
+                        'open': hist['Open'].round(2).tolist(),
+                        'current_price': current_price,
+                        'market_cap': info.get('marketCap', 'N/A'),
+                        'pe_ratio': round(info.get('trailingPE', 0), 2) if info.get('trailingPE') else 'N/A',
+                        'dividend_yield': round(info.get('dividendYield', 0) * 100, 2) if info.get('dividendYield') else 0,
+                        'volume_avg': hist['Volume'].mean(),
+                        'volatility': round(volatility * 100, 2),
+                        '52_week_high': info.get('fiftyTwoWeekHigh', current_price),
+                        '52_week_low': info.get('fiftyTwoWeekLow', current_price),
+                        'beta': round(info.get('beta', 1), 2) if info.get('beta') else 1,
+                    }
+                    return data
+            except Exception:
+                continue
+        
+        st.warning(f"Using simulated data for {symbol}")
+        return _self.generate_sample_data(symbol, period)
+    
+    def generate_sample_data(self, symbol, period='6mo'):
+        days = {'1mo': 30, '3mo': 90, '6mo': 180, '1y': 365}[period]
+        base_price = 100 + np.random.randint(50, 500)
+        dates = [(datetime.now() - timedelta(days=x)) for x in range(days, 0, -1)]
+        returns = np.random.normal(0.001, 0.02, days)
+        prices = [base_price]
+        for ret in returns:
+            prices.append(prices[-1] * (1 + ret))
+        prices = prices[1:]
+        
+        data = {
+            'dates': [d.strftime('%Y-%m-%d') for d in dates],
+            'prices': [round(p, 2) for p in prices],
+            'volumes': [int(np.random.uniform(100000, 1000000)) for _ in range(days)],
+            'high': [round(p * (1 + np.random.uniform(0, 0.02)), 2) for p in prices],
+            'low': [round(p * (1 - np.random.uniform(0, 0.02)), 2) for p in prices],
+            'open': [round(p * (1 + np.random.uniform(-0.01, 0.01)), 2) for p in prices],
+            'current_price': round(prices[-1], 2),
+            'market_cap': f"PKR {np.random.uniform(10, 500):.1f}B",
+            'pe_ratio': round(np.random.uniform(5, 25), 2),
+            'dividend_yield': round(np.random.uniform(2, 12), 2),
+            'volume_avg': int(np.random.uniform(500000, 2000000)),
+            'volatility': round(np.random.uniform(15, 45), 2),
+            '52_week_high': round(max(prices) * 1.05, 2),
+            '52_week_low': round(min(prices) * 0.95, 2),
+            'beta': round(np.random.uniform(0.5, 1.5), 2),
+        }
+        return data
+
+    def calculate_technical_indicators(self, prices):
+        gains = []
+        losses = []
+        for i in range(1, len(prices)):
+            change = prices[i] - prices[i-1]
+            gains.append(change if change > 0 else 0)
+            losses.append(abs(change) if change < 0 else 0)
+        
+        periods = min(14, len(gains))
+        avg_gain = sum(gains[-periods:]) / periods if periods > 0 else 0
+        avg_loss = sum(losses[-periods:]) / periods if periods > 0 else 1
+        rs = avg_gain / avg_loss if avg_loss != 0 else 100
+        rsi = 100 - (100 / (1 + rs))
+        
+        ma20 = sum(prices[-min(20, len(prices)):]) / min(20, len(prices))
+        ma50 = sum(prices[-min(50, len(prices)):]) / min(50, len(prices))
+        
+        window = min(20, len(prices))
+        sma20 = sum(prices[-window:]) / window
+        std20 = np.std(prices[-window:]) if len(prices) >= window else np.std(prices)
+        upper_band = sma20 + (std20 * 2)
+        lower_band = sma20 - (std20 * 2)
+        
+        return {
+            'RSI': round(rsi, 2),
+            'MA20': round(ma20, 2),
+            'MA50': round(ma50, 2),
+            'Upper Band': round(upper_band, 2),
+            'Lower Band': round(lower_band, 2),
+        }
+
+    def calculate_trend(self, prices):
+        if len(prices) < 2:
+            return 0
+        return ((prices[-1] - prices[0]) / prices[0]) * 100
+   
+    def predict_future(self, months=36):
+        """Predict future prices for up to 3 years (36 months)"""
+        prices = self.data['prices']
+        n = len(prices)
+        x = list(range(n))
+        y = prices
+        
+        mean_x = sum(x) / n
+        mean_y = sum(y) / n
+        
+        numerator = sum((x[i] - mean_x) * (y[i] - mean_y) for i in range(n))
+        denominator = sum((x[i] - mean_x) ** 2 for i in range(n))
+        
+        slope = numerator / denominator if denominator != 0 else 0
+        intercept = mean_y - slope * mean_x
+        
+        # Predict for up to 36 months (3 years)
+        predictions = [round(slope * i + intercept, 2) for i in range(n, n + months)]
+        
+        residuals = [y[i] - (slope * x[i] + intercept) for i in range(n)]
+        std_dev = math.sqrt(sum(r**2 for r in residuals) / n) if n > 0 else 0
+        
+        lower_bounds = [round(p - 1.96 * std_dev, 2) for p in predictions]
+        upper_bounds = [round(p + 1.96 * std_dev, 2) for p in predictions]
+        
+        return predictions, lower_bounds, upper_bounds
+
+# Main function
 def main():
     st.markdown("<h1>PSX Stock Predictor</h1>", unsafe_allow_html=True)
     st.markdown("<p style='text-align: center; color: white;'>Real-Time Pakistan Stock Exchange Analysis</p>", unsafe_allow_html=True)
@@ -619,27 +1193,19 @@ def main():
                 or better risk-reward setup.
                 """)
     
-        else:
-        st.info("👈 Welcome! Select a stock from the sidebar and click 'Analyze Stock' to begin.")
+    else:
+        st.info("👈 Select a stock from the sidebar and click 'Analyze Stock' to begin")
         
         st.markdown("""
         ### Features:
-        - Real-time price charts
-        - Technical indicators (RSI, Moving Averages, Bollinger Bands)
-        - Portfolio tracker with profit/loss calculation
+        - Real-time data & technical analysis
+        - Portfolio tracking with tax calculations
         - 3-year price predictions
-        - Buy/Sell signals with confidence levels
-        - Support & Resistance levels
-        - Candlestick charts
+        - Buy/Sell signals
         
-        ### Available Sectors:
-        - Banking
-        - Cement
-        - Oil & Gas
-        - Power
-        - Fertilizer
-        - Technology
-        - Telecom
+        ### Sectors Available:
+        Banking | Cement | Oil & Gas | Power | Fertilizer | Technology | Telecom
         """)
+
 if __name__ == "__main__":
     main()
