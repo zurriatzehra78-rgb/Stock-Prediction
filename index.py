@@ -1202,9 +1202,16 @@ def main():
         - Portfolio tracking with tax calculations
         - 3-year price predictions
         - Buy/Sell signals
+        - Candlestick Chart
         
         ### Sectors Available:
-        Banking | Cement | Oil & Gas | Power | Fertilizer | Technology | Telecom
+        - Banking
+        - Cement
+        - Oil & Gas
+        - Power
+        - Fertilizer
+        - Technology
+        - Telecom
         """)
 
 if __name__ == "__main__":
