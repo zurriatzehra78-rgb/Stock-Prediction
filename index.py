@@ -549,7 +549,7 @@ class PSXStockPredictor:
             return 0
         return ((prices[-1] - prices[0]) / prices[0]) * 100
 
-    def predict_future(self, months=5):
+   def predict_future(self, months=36):
         prices = self.data['prices']
         n = len(prices)
         x = list(range(n))
@@ -573,13 +573,11 @@ class PSXStockPredictor:
         upper_bounds = [round(p + 1.96 * std_dev, 2) for p in predictions]
         
         return predictions, lower_bounds, upper_bounds
-
 def main():
     st.markdown("<h1>PSX Stock Predictor</h1>", unsafe_allow_html=True)
     st.markdown("<p style='text-align: center; color: white;'>Real-Time Pakistan Stock Exchange Analysis</p>", unsafe_allow_html=True)
     st.markdown("---")
-    
-    # Initialize
+
     if 'predictor' not in st.session_state:
         st.session_state.predictor = PSXStockPredictor()
     if 'analyzed' not in st.session_state:
@@ -587,7 +585,6 @@ def main():
     
     predictor = st.session_state.predictor
     
-    # Sidebar
     with st.sidebar:
         st.header("Stock Selection")
         
@@ -911,24 +908,45 @@ def main():
             })
             st.dataframe(hist_df, use_container_width=True)
         
-        with tab3:
-            st.subheader("5-Month Price Predictions")
+    with tab3:
+            st.subheader("36-Month (3 Years) Price Predictions")
             
-            predictions, lower, upper = predictor.predict_future()
-            months = ["Month 1", "Month 2", "Month 3", "Month 4", "Month 5"]
+            predictions, lower, upper = predictor.predict_future(36)
             
-            pred_df = pd.DataFrame({
-                'Month': months,
-                'Predicted Price': [f"PKR {p:,.2f}" for p in predictions],
-                'Lower Bound': [f"PKR {l:,.2f}" for l in lower],
-                'Upper Bound': [f"PKR {u:,.2f}" for u in upper]
+            months = [f"Month {i+1}" for i in range(36)]
+            
+            st.markdown("**Year 1 (Months 1-12)**")
+            pred_df_year1 = pd.DataFrame({
+                'Month': months[:12],
+                'Predicted Price': [f"PKR {p:,.2f}" for p in predictions[:12]],
+                'Lower Bound': [f"PKR {l:,.2f}" for l in lower[:12]],
+                'Upper Bound': [f"PKR {u:,.2f}" for u in upper[:12]]
             })
-            st.dataframe(pred_df, use_container_width=True)
+            st.dataframe(pred_df_year1, use_container_width=True)
+            
+            st.markdown("**Year 2 (Months 13-24)**")
+            pred_df_year2 = pd.DataFrame({
+                'Month': months[12:24],
+                'Predicted Price': [f"PKR {p:,.2f}" for p in predictions[12:24]],
+                'Lower Bound': [f"PKR {l:,.2f}" for l in lower[12:24]],
+                'Upper Bound': [f"PKR {u:,.2f}" for u in upper[12:24]]
+            })
+            st.dataframe(pred_df_year2, use_container_width=True)
+            
+            st.markdown("**Year 3 (Months 25-36)**")
+            pred_df_year3 = pd.DataFrame({
+                'Month': months[24:36],
+                'Predicted Price': [f"PKR {p:,.2f}" for p in predictions[24:36]],
+                'Lower Bound': [f"PKR {l:,.2f}" for l in lower[24:36]],
+                'Upper Bound': [f"PKR {u:,.2f}" for u in upper[24:36]]
+            })
+            st.dataframe(pred_df_year3, use_container_width=True)
             
             fig_pred = go.Figure()
             fig_pred.add_trace(go.Scatter(
                 x=months, y=predictions, mode='lines+markers',
-                name='Predicted', line=dict(color='#FFD700', width=2)
+                name='Predicted', line=dict(color='#FFD700', width=2),
+                marker=dict(size=4)
             ))
             fig_pred.add_trace(go.Scatter(
                 x=months, y=upper, mode='lines',
@@ -938,12 +956,39 @@ def main():
                 x=months, y=lower, mode='lines',
                 name='Lower Bound', line=dict(color='gray', dash='dash')
             ))
-            fig_pred.update_layout(template='plotly_dark', height=500)
+            
+            fig_pred.add_trace(go.Scatter(
+                x=months + months[::-1],
+                y=upper + lower[::-1],
+                fill='toself',
+                fillcolor='rgba(128, 128, 128, 0.2)',
+                line=dict(color='rgba(255,255,255,0)'),
+                name='95% Confidence Interval'
+            ))
+            
+            fig_pred.update_layout(
+                template='plotly_dark', 
+                height=600,
+                title=f'{predictor.current_stock} - 3 Year Price Forecast',
+                xaxis_title='Month',
+                yaxis_title='Price (PKR)'
+            )
             st.plotly_chart(fig_pred, use_container_width=True)
             
-            expected_return = ((predictions[-1] - predictor.data['current_price']) / predictor.data['current_price']) * 100
-            st.metric("Expected 5-Month Return", f"{expected_return:+.1f}%")
-        
+            expected_return_1yr = ((predictions[11] - predictor.data['current_price']) / predictor.data['current_price']) * 100
+            expected_return_2yr = ((predictions[23] - predictor.data['current_price']) / predictor.data['current_price']) * 100
+            expected_return_3yr = ((predictions[-1] - predictor.data['current_price']) / predictor.data['current_price']) * 100
+            
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("Expected 1-Year Return", f"{expected_return_1yr:+.1f}%")
+            with col2:
+                st.metric("Expected 2-Year Return", f"{expected_return_2yr:+.1f}%")
+            with col3:
+                st.metric("Expected 3-Year Return", f"{expected_return_3yr:+.1f}%")
+            
+            cagr = ((predictions[-1] / predictor.data['current_price']) ** (1/3) - 1) * 100
+            st.metric("CAGR (Compound Annual Growth Rate)", f"{cagr:+.1f}%")
         with tab4:
             st.subheader("Advanced Trend Analysis & Trading Signals")
             
