@@ -1,35 +1,23 @@
-name: Keep Streamlit App Awake
+from playwright.sync_api import sync_playwright
 
-on:
-  schedule:
-    - cron: '0 */6 * * *'  # Runs every 6 hours
-  workflow_dispatch:  # Allows manual trigger
+URL = "https://stock-prediction-r5fwsua8s6pwfhfwwigems.streamlit.app/" 
+def wake_app():
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
+        page = browser.new_page()
+        page.goto(URL, timeout=120000)
+        page.wait_for_timeout(5000)
+        
+        # Click the wake-up button if present
+        wake_btn = page.get_by_role("button", name="Yes, get this app back up!")
+        if wake_btn.count() > 0:
+            print("WAKE - App was sleeping, clicking button")
+            wake_btn.click()
+            page.wait_for_timeout(60000)
+        else:
+            print("OK - App was already awake")
+        
+        browser.close()
 
-jobs:
-  wake-app:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-      
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-      
-      - name: Install Playwright
-        run: |
-          pip install playwright
-          playwright install chromium
-      
-      - name: Visit and interact with Streamlit app
-        run: |
-          python -c "
-          from playwright.sync_api import sync_playwright
-          with sync_playwright() as p:
-              browser = p.chromium.launch(headless=True)
-              page = browser.new_page()
-              page.goto('https://your-app-name.streamlit.app')
-              page.wait_for_timeout(5000)  # Wait for app to load
-              browser.close()
-          "
+if __name__ == "__main__":
+    wake_app()
