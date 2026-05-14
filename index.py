@@ -444,7 +444,7 @@ class PSXStockPredictor:
         self.tax_rate = None
         self.utilities_rate = None
 
-        @st.cache_data(ttl=300)
+    @st.cache_data(ttl=300)
     def fetch_stock_data(_self, symbol, period='6mo'):
         symbols_to_try = [f"{symbol}.PK", f"{symbol}.PSX", symbol, f"{symbol}.KA", f"{symbol}-PK"]
         
@@ -490,7 +490,7 @@ class PSXStockPredictor:
         
         st.warning(f"Using simulated data for {symbol}")
         return _self.generate_sample_data(symbol, period)
-        
+    
     def generate_sample_data(self, symbol, period='6mo'):
         days = {'1mo': 30, '3mo': 90, '6mo': 180, '1y': 365}[period]
         base_price = 100 + np.random.randint(50, 500)
