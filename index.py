@@ -444,20 +444,28 @@ class PSXStockPredictor:
         self.tax_rate = None
         self.utilities_rate = None
 
-    @st.cache_data(ttl=300)
+        @st.cache_data(ttl=300)
     def fetch_stock_data(_self, symbol, period='6mo'):
         symbols_to_try = [f"{symbol}.PK", f"{symbol}.PSX", symbol, f"{symbol}.KA", f"{symbol}-PK"]
         
         for try_symbol in symbols_to_try:
             try:
                 ticker = yf.Ticker(try_symbol)
+                
+                # FIRST: Get CURRENT price using 5 days of data (always most recent)
+                current_hist = ticker.history(period='5d', interval='1d')
+                if not current_hist.empty:
+                    current_price = current_hist['Close'].iloc[-1]
+                else:
+                    current_price = None
+                
+                # SECOND: Get historical data for the selected period
                 hist = ticker.history(period=period, interval='1d')
                 
                 if not hist.empty and len(hist) > 5:
-                    current_price = hist['Close'].iloc[-1]
                     info = ticker.info
                     returns = hist['Close'].pct_change().dropna()
-                    volatility = returns.std() * np.sqrt(252)
+                    volatility = returns.std() * np.sqrt(252) if len(returns) > 0 else 0
                     
                     data = {
                         'dates': hist.index.strftime('%Y-%m-%d').tolist(),
@@ -466,14 +474,14 @@ class PSXStockPredictor:
                         'high': hist['High'].round(2).tolist(),
                         'low': hist['Low'].round(2).tolist(),
                         'open': hist['Open'].round(2).tolist(),
-                        'current_price': current_price,
+                        'current_price': current_price if current_price else hist['Close'].iloc[-1],
                         'market_cap': info.get('marketCap', 'N/A'),
                         'pe_ratio': round(info.get('trailingPE', 0), 2) if info.get('trailingPE') else 'N/A',
                         'dividend_yield': round(info.get('dividendYield', 0) * 100, 2) if info.get('dividendYield') else 0,
                         'volume_avg': hist['Volume'].mean(),
                         'volatility': round(volatility * 100, 2),
-                        '52_week_high': info.get('fiftyTwoWeekHigh', current_price),
-                        '52_week_low': info.get('fiftyTwoWeekLow', current_price),
+                        '52_week_high': info.get('fiftyTwoWeekHigh', current_price if current_price else hist['Close'].iloc[-1]),
+                        '52_week_low': info.get('fiftyTwoWeekLow', current_price if current_price else hist['Close'].iloc[-1]),
                         'beta': round(info.get('beta', 1), 2) if info.get('beta') else 1,
                     }
                     return data
@@ -482,7 +490,7 @@ class PSXStockPredictor:
         
         st.warning(f"Using simulated data for {symbol}")
         return _self.generate_sample_data(symbol, period)
-    
+        
     def generate_sample_data(self, symbol, period='6mo'):
         days = {'1mo': 30, '3mo': 90, '6mo': 180, '1y': 365}[period]
         base_price = 100 + np.random.randint(50, 500)
